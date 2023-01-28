@@ -1,16 +1,31 @@
 #include <Arduino.h>
 
-#include <Adafruit_NeoPixel.h>
-#ifdef __AVR__
-  #include <avr/power.h>
-#endif
-
-#include "esp_log.h"
+// #include <Adafruit_NeoPixel.h>
+// #ifdef __AVR__
+//   #include <avr/power.h>
+// #endif
 
 #include "soc/soc.h"             // disable brownout problems
 #include "soc/rtc_cntl_reg.h"    // disable brownout problems
 
+#include "esp_log.h"
+#include "esp_adc_cal.h"
+
+// calibration values for the adc
+#define DEFAULT_VREF 1100
+esp_adc_cal_characteristics_t *adc_chars;
+
+#define USE_SOUND
+
 #define MAIN_TAG "Main"
+
+#ifdef USE_SOUND
+  #include "DFMiniMp3.h"
+  #include "Mp3Notify.h"
+  HardwareSerial mySerial(2); // 16, 17
+  DfMp3 dfmp3(mySerial);
+  int volume = 10; // 0~30
+#endif
 
 // These are all GPIO pins on the ESP32
 // Recommended pins include 2,4,12-19,21-23,25-27,32-33
@@ -19,150 +34,94 @@
 // 13 outputs PWM signal at boot
 // 14 outputs PWM signal at boot
 
-#define CHANNEL_L1 14
-#define CHANNEL_L2 15
-#define CHANNEL_R1 12
-#define CHANNEL_R2 13
+void setupAudioInput() {
+  //Range 0-4096
+  adc1_config_width(ADC_WIDTH_BIT_12);
+  // full voltage range
+  adc1_config_channel_atten(ADC1_CHANNEL_7, ADC_ATTEN_DB_11);
 
-#define PIN_1 21
-#define PIN_2 22
-
-
-// Parameter 1 = number of pixels in strip
-// Parameter 2 = Arduino pin number (most are valid)
-// Parameter 3 = pixel type flags, add together as needed:
-//   NEO_KHZ800  800 KHz bitstream (most NeoPixel products w/WS2812 LEDs)
-//   NEO_KHZ400  400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
-//   NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
-//   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
-//   NEO_RGBW    Pixels are wired for RGBW bitstream (NeoPixel RGBW products)
-Adafruit_NeoPixel strip1 = Adafruit_NeoPixel(34, PIN_1, NEO_GRB + NEO_KHZ800);
-Adafruit_NeoPixel strip2 = Adafruit_NeoPixel(34, PIN_2, NEO_GRB + NEO_KHZ800);
-
-// IMPORTANT: To reduce NeoPixel burnout risk, add 1000 uF capacitor across
-// pixel power leads, add 300 - 500 Ohm resistor on first pixel's data input
-// and minimize distance between Arduino and first pixel.  Avoid connecting
-// on a live circuit...if you must, connect GND first.
-
-// Fill the dots one after the other with a color
-void colorWipe(Adafruit_NeoPixel& strip1, Adafruit_NeoPixel& strip2, uint32_t c, uint8_t wait) {
-  for(uint16_t i=0; i<strip1.numPixels(); i++) {
-    strip1.setPixelColor(i, c);
-    strip2.setPixelColor(i, c);
-    strip1.show();
-    strip2.show();
-    delay(wait);
+  // check to see what calibration is available
+  if (esp_adc_cal_check_efuse(ESP_ADC_CAL_VAL_EFUSE_VREF) == ESP_OK) {
+    ESP_LOGI(MAIN_TAG, "Using voltage ref stored in eFuse");
   }
+  if (esp_adc_cal_check_efuse(ESP_ADC_CAL_VAL_EFUSE_TP) == ESP_OK) {
+    ESP_LOGI(MAIN_TAG, "Using two point values from eFuse");
+  }
+  if (esp_adc_cal_check_efuse(ESP_ADC_CAL_VAL_DEFAULT_VREF) == ESP_OK) {
+    ESP_LOGI(MAIN_TAG, "Using default VREF");
+  }
+  //Characterize ADC
+  adc_chars = (esp_adc_cal_characteristics_t *)calloc(1, sizeof(esp_adc_cal_characteristics_t));
+  esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_12, DEFAULT_VREF, adc_chars);  
 }
 
-// Input a value 0 to 255 to get a color value.
-// The colours are a transition r - g - b - back to r.
-uint32_t Wheel(Adafruit_NeoPixel& strip, byte WheelPos) {
-  WheelPos = 255 - WheelPos;
-  if(WheelPos < 85) {
-    return strip.Color(255 - WheelPos * 3, 0, WheelPos * 3);
-  }
-  if(WheelPos < 170) {
-    WheelPos -= 85;
-    return strip.Color(0, WheelPos * 3, 255 - WheelPos * 3);
-  }
-  WheelPos -= 170;
-  return strip.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
-}
-
-void rainbow(Adafruit_NeoPixel& strip1, Adafruit_NeoPixel& strip2, uint8_t wait) {
-  uint16_t i, j;
-
-  for(j=0; j<256; j++) {
-    for(i=0; i<strip1.numPixels(); i++) {
-      strip1.setPixelColor(i, Wheel(strip1, (i+j) & 255));
-      strip2.setPixelColor(i, Wheel(strip2, (i+j) & 255));
-    }
-    strip1.show();
-    strip2.show();
-    delay(wait);
-  }
-}
-
-// Slightly different, this makes the rainbow equally distributed throughout
-void rainbowCycle(Adafruit_NeoPixel& strip1, Adafruit_NeoPixel& strip2, uint8_t wait) {
-  uint16_t i, j;
-
-  for(j=0; j<256*5; j++) { // 5 cycles of all colors on wheel
-    for(i=0; i< strip1.numPixels(); i++) {
-      strip1.setPixelColor(i, Wheel(strip1, ((i * 256 / strip1.numPixels()) + j) & 255));
-      strip2.setPixelColor(i, Wheel(strip2, ((i * 256 / strip2.numPixels()) + j) & 255));
-    }
-    strip1.show();
-    strip2.show();
-    delay(wait);
-  }
-}
-
-//Theatre-style crawling lights.
-void theaterChase(Adafruit_NeoPixel& strip1, Adafruit_NeoPixel& strip2, uint32_t c, uint8_t wait) {
-  for (int j=0; j<10; j++) {  //do 10 cycles of chasing
-    for (int q=0; q < 3; q++) {
-      for (uint16_t i=0; i < strip1.numPixels(); i=i+3) {
-        strip1.setPixelColor(i+q, c);    //turn every third pixel on
-        strip2.setPixelColor(i+q, c);    //turn every third pixel on
-      }
-      strip1.show();
-      strip2.show();
-
-      delay(wait);
-
-      for (uint16_t i=0; i < strip1.numPixels(); i=i+3) {
-        strip1.setPixelColor(i+q, 0);        //turn every third pixel off
-        strip2.setPixelColor(i+q, 0);        //turn every third pixel off
-      }
-    }
-  }
-}
-
-//Theatre-style crawling lights with rainbow effect
-void theaterChaseRainbow(Adafruit_NeoPixel& strip1, Adafruit_NeoPixel& strip2, uint8_t wait) {
-  for (int j=0; j < 256; j++) {     // cycle all 256 colors in the wheel
-    for (int q=0; q < 3; q++) {
-      for (uint16_t i=0; i < strip1.numPixels(); i=i+3) {
-        strip1.setPixelColor(i+q, Wheel(strip1, (i+j) % 255));    //turn every third pixel on
-        strip2.setPixelColor(i+q, Wheel(strip2, (i+j) % 255));    //turn every third pixel on
-      }
-      strip1.show();
-      strip2.show();
-
-      delay(wait);
-
-      for (uint16_t i=0; i < strip1.numPixels(); i=i+3) {
-        strip1.setPixelColor(i+q, 0);        //turn every third pixel off
-        strip2.setPixelColor(i+q, 0);        //turn every third pixel off
-      }
-    }
+void dfmp3Delay(DfMp3& dfmp3, int ms) {
+  int cnt = ms / 10;
+  for(int i = 0; i < cnt; i ++) {
+    dfmp3.loop();
+    delay(10);
   }
 }
 
 void setup() {
-  strip1.begin();
-  strip1.setBrightness(80);
-  strip1.show(); // Initialize all pixels to 'off'
 
-  strip2.begin();
-  strip2.setBrightness(80);
-  strip2.show(); // Initialize all pixels to 'off'
+#ifdef USE_SOUND
+  // delay(2000);
+
+  dfmp3.begin(9600, 1000);
+  ESP_LOGI(MAIN_TAG, "dfplayer begin");
+  dfmp3Delay(dfmp3, 100);
+
+  dfmp3.setVolume(volume);
+  ESP_LOGI(MAIN_TAG, "Set volume %d", volume);
+  dfmp3Delay(dfmp3, 100);
+#endif
+
+  setupAudioInput();
+
+#ifdef USE_SOUND
+  dfmp3.setRepeatPlayCurrentTrack(true);
+  dfmp3Delay(dfmp3, 100);
+
+  dfmp3.playMp3FolderTrack(1);
+  dfmp3Delay(dfmp3, 100);
+
+  // dfmp3.setEq(DfMp3_Eq_Bass);
+  // dfmp3.enableDac();
+#endif
 }
+
+unsigned long lastTime = 0;
+
+#define SAMPLE_COUNT 100
+int sampleIndex = 0;
+int currentMax = 0;
+int currentMin = 4096;
 
 void loop() {
-  // Some example procedures showing how to display to the pixels:
-  colorWipe(strip1, strip2, strip1.Color(255, 0, 0), 50); // Red
-  colorWipe(strip1, strip2, strip1.Color(0, 255, 0), 50); // Green
-  colorWipe(strip1, strip2, strip1.Color(0, 0, 255), 50); // Blue
-//colorWipe(strip1.Color(0, 0, 0, 255), 50); // White RGBW
-  // Send a theater pixel chase in...
-  theaterChase(strip1, strip2, strip1.Color(127, 127, 127), 50); // White
-  theaterChase(strip1, strip2, strip1.Color(127, 0, 0), 50); // Red
-  theaterChase(strip1, strip2, strip1.Color(0, 0, 127), 50); // Blue
-  rainbow(strip1, strip2, 20);
-  rainbowCycle(strip1, strip2, 20);
-  theaterChaseRainbow(strip1, strip2, 50);
-}
 
+#ifdef USE_SOUND
+  dfmp3.loop();
+#endif
+
+  int sample = adc1_get_raw(ADC1_CHANNEL_7);
+  if (sampleIndex == 0) {
+    currentMin = sample;
+    currentMax = sample;
+  } else {
+    currentMin = min(currentMin, sample);
+    currentMax = max(currentMax, sample);
+  }
+  if (sampleIndex == SAMPLE_COUNT - 1) {
+    ESP_LOGD(MAIN_TAG, "Min=%4d, Max=%4d (%3d)", currentMin, currentMax, currentMax - currentMin);
+  }
+
+  sampleIndex = (sampleIndex + 1) % SAMPLE_COUNT;
+
+  // unsigned long now = millis();
+  // if (now - lastTime > 100) {
+  //   lastTime = now;
+  // }
+
+  delay(10);
+}
