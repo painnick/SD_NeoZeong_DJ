@@ -3,7 +3,7 @@
 #include <Arduino.h>
 #include "DFMiniMp3.h"
 
-#define MP3NOTI_TAG "Main"
+#define MP3NOTI_TAG "Mp3Noti"
 
 class Mp3Notify;
 typedef DFMiniMp3<HardwareSerial, Mp3Notify> DfMp3;

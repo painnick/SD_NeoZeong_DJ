@@ -469,6 +469,14 @@ public:
         return _isOnline;
     }
 
+    void delayForResponse(int ms) {
+        int cnt = ms / 10;
+        for(int i = 0; i < cnt; i ++) {
+            loop();
+            delay(10);
+        }
+    }
+
 private:
     static const uint16_t c_msSendSpace = 50;
 
