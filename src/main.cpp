@@ -5,6 +5,7 @@
 
 #include "esp_log.h"
 
+#include "common.h"
 #include "DFMiniMp3.h"
 #include "Mp3Notify.h"
 #include "AdcUtil.h"
@@ -12,29 +13,12 @@
 #define MAIN_TAG "Main"
 
 // ============================================================
-// Pin Map
-// ------------------------------------------------------------
-// These are all GPIO pins on the ESP32
-// Recommended pins include 2,4,12-19,21-23,25-27,32-33
-// for the ESP32-S2 the GPIO pins are 1-21,26,33-42
-//
-// 13 outputs PWM signal at boot
-// 14 outputs PWM signal at boot
-// ============================================================
-#define PIN_PLAYER_BUSY 33
-#define PIN_DFPLAYER_RX 16
-#define PIN_DFPLAYER_TX 17
-#define PIN_MIC_SENSOR 35
-#define PIN_SAMPLE_THRESHOLD 34
-#define PIN_STRIP1 21
-
-// ============================================================
 // Dfplayer
 // ------------------------------------------------------------
 // Volume : 0~30
 // ============================================================
 #define DEFAULT_VOLUME 10
-HardwareSerial mySerial(2); // 16, 17
+HardwareSerial mySerial(UART_PLAYER);
 DfMp3 dfmp3(mySerial);
 
 // ============================================================
@@ -69,6 +53,8 @@ void task1(void* params) {
 }
 
 void setup() {
+
+  ESP_LOGI(MAIN_TAG, "Setup!");
 
   xTaskCreate(
     task1,
@@ -113,6 +99,9 @@ void loop() {
       lastMp3Busy = now;
     } else {
       if (now - lastMp3Busy > 2000) {
+        dfmp3.setVolume(DEFAULT_VOLUME);
+        dfmp3.delayForResponse(100);
+
         dfmp3.nextTrack();
         dfmp3.delayForResponse(100);
 
@@ -124,7 +113,7 @@ void loop() {
   }
 
   int base = analogRead(PIN_SAMPLE_THRESHOLD);
-  int sample = adc1_get_raw(ADC1_CHANNEL_7);
+  int sample = adc1_get_raw(ADC_CHANNEL);
   int diff = sample - base;
 
   if (diff > 20) {

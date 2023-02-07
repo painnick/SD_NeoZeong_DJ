@@ -7,6 +7,8 @@
 #include "esp_adc_cal.h"
 #include "esp_log.h"
 
+#include "common.h"
+
 #define ADC_TAG "AdcUtil"
 
 #define DEFAULT_VREF 1100
@@ -16,7 +18,7 @@ extern void setupAudioInput() {
   //Range 0-4096
   adc1_config_width(ADC_WIDTH_BIT_12);
   // full voltage range
-  adc1_config_channel_atten(ADC1_CHANNEL_7, ADC_ATTEN_DB_11);
+  adc1_config_channel_atten(ADC_CHANNEL, ADC_ATTEN_DB_11);
 
   // check to see what calibration is available
   if (esp_adc_cal_check_efuse(ESP_ADC_CAL_VAL_EFUSE_VREF) == ESP_OK) {
