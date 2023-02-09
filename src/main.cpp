@@ -29,15 +29,14 @@ DfMp3 dfmp3(mySerial);
   #include <avr/power.h>
 #endif
 
-#define STRIP1_SIZE 34
+#define STRIP_STAGE_SIZE 34
 #define COLOR_WIPE_WAIT 2
 
-Adafruit_NeoPixel strip1 = Adafruit_NeoPixel(STRIP1_SIZE, PIN_STRIP1, NEO_GRB + NEO_KHZ800);
-uint32_t strip1Color;
+Adafruit_NeoPixel stripStage = Adafruit_NeoPixel(STRIP_STAGE_SIZE, PIN_STRIP_STAGE, NEO_GRB + NEO_KHZ800);
+uint32_t stripStageColor;
 
-// Fill the dots one after the other with a color
 void colorWipe(Adafruit_NeoPixel& strip, uint32_t c, uint8_t wait) {
-  for(uint16_t i=0; i<strip1.numPixels(); i++) {
+  for (uint16_t i = 0; i < stripStage.numPixels(); i++) {
     strip.setPixelColor(i, c);
     strip.show();
     delay(wait);
@@ -46,8 +45,8 @@ void colorWipe(Adafruit_NeoPixel& strip, uint32_t c, uint8_t wait) {
 
 void task1(void* params) {
   while(true) {
-    // ESP_LOGI(MAIN_TAG, "COLOR %d, %d, %d", (strip1Color >> 16) & 0xff, (strip1Color >> 8) & 0xff, strip1Color & 0xff);
-    colorWipe(strip1, strip1Color, COLOR_WIPE_WAIT);
+    // ESP_LOGI(MAIN_TAG, "COLOR %d, %d, %d", (stripStageColor >> 16) & 0xff, (stripStageColor >> 8) & 0xff, stripStageColor & 0xff);
+    colorWipe(stripStage, stripStageColor, COLOR_WIPE_WAIT);
   }
   vTaskDelete(NULL);
 }
@@ -120,14 +119,14 @@ void loop() {
     ESP_LOGD(MAIN_TAG, "Base %4d, Sample %4d (%4d)", base, sample, diff);
   }
 
-  uint32_t color = (diff > 20) ? strip1.Color(map(diff, 0, 127, 0, 255), 0, 0) : strip1.Color(0, 0, 0);
+  uint32_t color = (diff > 20) ? stripStage.Color(map(diff, 0, 127, 0, 255), 0, 0) : stripStage.Color(0, 0, 0);
 
   uint8_t r = (color >> 16) & 0xff;
   uint8_t g = (color >> 8) & 0xff;
   uint8_t b = color & 0xff;
 
-  if (now - lastStrip1Changed > STRIP1_SIZE * COLOR_WIPE_WAIT) {
-    strip1Color = strip1.Color(maxR, maxG, maxB);
+  if (now - lastStrip1Changed > STRIP_STAGE_SIZE * COLOR_WIPE_WAIT) {
+    stripStageColor = stripStage.Color(maxR, maxG, maxB);
     if (maxR + maxG + maxB != 0) {
       ESP_LOGI(MAIN_TAG, "COLOR %d, %d, %d", maxR, maxG, maxB);
     }

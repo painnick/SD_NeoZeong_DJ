@@ -12,7 +12,7 @@
 // ============================================================
 #define PIN_PLAYER_BUSY 33
 #define PIN_SAMPLE_THRESHOLD 34
-#define PIN_STRIP1 21
+#define PIN_STRIP_STAGE 21
 
 // ============================================================
 // RX/TX for dfplayer
