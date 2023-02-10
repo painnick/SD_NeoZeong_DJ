@@ -174,8 +174,8 @@ void loop() {
     lastMp3ColumeChecked = now;
   }
 
-  int mp3busy = digitalRead(PIN_PLAYER_BUSY);
-  if (mp3busy == HIGH) {
+  int playerBusy = digitalRead(PIN_PLAYER_BUSY);
+  if (playerBusy == HIGH) {
     if (lastMp3Busy == 0) {
       lastMp3Busy = now;
     } else {
