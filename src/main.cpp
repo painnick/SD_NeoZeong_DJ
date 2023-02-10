@@ -29,6 +29,8 @@ DfMp3 dfmp3(mySerial);
   #include <avr/power.h>
 #endif
 
+#define DEFAULT_BRIGHT 64
+
 #define STRIP_STAGE_SIZE 65
 #define STRIP_BAR_SIZE 8
 
@@ -41,6 +43,7 @@ Adafruit_NeoPixel stripBar2 = Adafruit_NeoPixel(STRIP_BAR_SIZE, PIN_STRIP_BAR2, 
 uint32_t stageColor;
 int barHeight;
 int currentVolume = DEFAULT_VOLUME;
+int currentBright = DEFAULT_BRIGHT;
 
 void colorWipe(Adafruit_NeoPixel& strip, uint32_t c, uint8_t wait) {
   for (uint16_t i = 0; i < strip.numPixels(); i++) {
@@ -86,11 +89,11 @@ void taskBar(void* params) {
     uint32_t color = stripBar1.Color(0, 0, 0);
     int height = min(lastHeight, STRIP_BAR_SIZE);
     if (height < 3) {
-      color = stripBar1.Color(0, 0, 64);
+      color = stripBar1.Color(0, 0, currentBright);
     } else if (height < 5) {
-      color = stripBar1.Color(0, 64, 0);
+      color = stripBar1.Color(0, currentBright, 0);
     } else  {
-      color = stripBar1.Color(64, 0, 0);
+      color = stripBar1.Color(currentBright, 0, 0);
     }
     colorHeight(stripBar1, stripBar2, color, lastHeight);
 
@@ -147,6 +150,7 @@ void setup() {
 
 unsigned long lastMp3Busy = 0;
 unsigned long lastMp3ColumeChecked = 0;
+unsigned long lastBrightChecked = 0;
 unsigned long lastStrip1Changed = 0;
 unsigned long lastBarChanged = 0;
 uint8_t maxR = 0;
@@ -172,6 +176,14 @@ void loop() {
     }
 
     lastMp3ColumeChecked = now;
+  }
+
+  if (now - lastBrightChecked > 500) {
+    int bright = analogRead(PIN_BRIGHT);
+    bright = map(bright, 0, 4095, 0, 256);
+    currentBright = bright;
+
+    lastBrightChecked = now;
   }
 
   int playerBusy = digitalRead(PIN_PLAYER_BUSY);

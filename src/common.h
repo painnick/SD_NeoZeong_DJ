@@ -17,6 +17,7 @@
 #define PIN_STRIP_STAGE 21
 #define PIN_STRIP_BAR1 22
 #define PIN_STRIP_BAR2 23
+#define PIN_BRIGHT 26
 
 // ============================================================
 // RX/TX for dfplayer
