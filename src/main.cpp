@@ -40,6 +40,7 @@ Adafruit_NeoPixel stripBar2 = Adafruit_NeoPixel(STRIP_BAR_SIZE, PIN_STRIP_BAR2, 
 
 uint32_t stageColor;
 int barHeight;
+int currentVolume = DEFAULT_VOLUME;
 
 void colorWipe(Adafruit_NeoPixel& strip, uint32_t c, uint8_t wait) {
   for (uint16_t i = 0; i < strip.numPixels(); i++) {
@@ -72,9 +73,9 @@ void taskBar(void* params) {
   int lastHeight = 0;
 
   while(true) {
-    if (lastHeight != 0) {
-      ESP_LOGI(MAIN_TAG, "Bar %d", lastHeight);
-    }
+    // if (lastHeight != 0) {
+    //   ESP_LOGI(MAIN_TAG, "Bar %d", lastHeight);
+    // }
     if (barHeight > lastHeight) {
       lastHeight = barHeight;
     } else {
@@ -133,8 +134,8 @@ void setup() {
   ESP_LOGI(MAIN_TAG, "dfplayer begin");
   dfmp3.delayForResponse(100);
 
-  dfmp3.setVolume(DEFAULT_VOLUME);
-  ESP_LOGI(MAIN_TAG, "Set volume %d", DEFAULT_VOLUME);
+  dfmp3.setVolume(currentVolume);
+  ESP_LOGI(MAIN_TAG, "Set volume %d", currentVolume);
   dfmp3.delayForResponse(100);
 
   setupAudioInput();
@@ -145,6 +146,7 @@ void setup() {
 }
 
 unsigned long lastMp3Busy = 0;
+unsigned long lastMp3ColumeChecked = 0;
 unsigned long lastStrip1Changed = 0;
 unsigned long lastBarChanged = 0;
 uint8_t maxR = 0;
@@ -156,6 +158,21 @@ void loop() {
   unsigned long now = millis();
 
   dfmp3.loop();
+
+  if (now - lastMp3ColumeChecked > 500) {
+    int volume = analogRead(PIN_PLAYER_VOLUME);
+    volume = map(volume, 0, 4095, 0, 30);
+    
+    if (currentVolume != volume) {
+      dfmp3.setVolume(currentVolume);
+      ESP_LOGI(MAIN_TAG, "Set volume %d", currentVolume);
+      dfmp3.delayForResponse(100);
+
+      currentVolume = volume;
+    }
+
+    lastMp3ColumeChecked = now;
+  }
 
   int mp3busy = digitalRead(PIN_PLAYER_BUSY);
   if (mp3busy == HIGH) {
