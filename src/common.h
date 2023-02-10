@@ -14,6 +14,7 @@
 #define PIN_SAMPLE_THRESHOLD 34
 #define PIN_STRIP_STAGE 21
 #define PIN_STRIP_BAR1 22
+#define PIN_STRIP_BAR2 23
 
 // ============================================================
 // RX/TX for dfplayer

@@ -36,6 +36,7 @@ DfMp3 dfmp3(mySerial);
 
 Adafruit_NeoPixel stripStage = Adafruit_NeoPixel(STRIP_STAGE_SIZE, PIN_STRIP_STAGE, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel stripBar1 = Adafruit_NeoPixel(STRIP_BAR_SIZE, PIN_STRIP_BAR1, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel stripBar2 = Adafruit_NeoPixel(STRIP_BAR_SIZE, PIN_STRIP_BAR2, NEO_GRB + NEO_KHZ800);
 
 uint32_t stageColor;
 int barHeight;
@@ -48,11 +49,15 @@ void colorWipe(Adafruit_NeoPixel& strip, uint32_t c, uint8_t wait) {
   }
 }
 
-void colorHeight(Adafruit_NeoPixel& strip, uint32_t c, int height) {
-  for (uint16_t i = 0; i < strip.numPixels(); i++) {
-    strip.setPixelColor(i, (i < height) ? c : 0);
+void colorHeight(Adafruit_NeoPixel& strip1, Adafruit_NeoPixel& strip2, uint32_t c, int height) {
+  for (uint16_t i = 0; i < strip1.numPixels(); i++) {
+    strip1.setPixelColor(i, (i < height) ? c : 0);
   }
-  strip.show();
+  for (uint16_t i = 0; i < strip2.numPixels(); i++) {
+    strip2.setPixelColor(i, (i < height) ? c : 0);
+  }
+  strip1.show();
+  strip2.show();
 }
 
 void taskStage(void* params) {
@@ -81,17 +86,17 @@ void taskBar(void* params) {
     int height = min(lastHeight, STRIP_BAR_SIZE);
     if (height < 3) {
       color = stripBar1.Color(0, 0, 64);
-    } else if (height < 6) {
+    } else if (height < 5) {
       color = stripBar1.Color(0, 64, 0);
     } else  {
       color = stripBar1.Color(64, 0, 0);
     }
-    colorHeight(stripBar1, color, lastHeight);
+    colorHeight(stripBar1, stripBar2, color, lastHeight);
 
     while (true)
     {
       unsigned long now = millis();
-      if (now - lastBarChecked < 50) {
+      if (now - lastBarChecked < 100) {
         delay(5);
       } else {
         lastBarChecked = now;
@@ -175,9 +180,9 @@ void loop() {
   int sample = adc1_get_raw(ADC_CHANNEL);
   int diff = sample - base;
 
-  if (diff > 20) {
-    ESP_LOGD(MAIN_TAG, "Base %4d, Sample %4d (%4d)", base, sample, diff);
-  }
+  // if (diff > 20) {
+  //   ESP_LOGD(MAIN_TAG, "Base %4d, Sample %4d (%4d)", base, sample, diff);
+  // }
 
   uint16_t value = map(diff, 0, 127, 0, 255);
   uint32_t color = (diff > 20) ? stripStage.Color(value, 0, 0) : stripStage.Color(0, 0, 0);
