@@ -148,8 +148,8 @@ void setup() {
   dfmp3.delayForResponse(100);
 }
 
-unsigned long lastMp3Busy = 0;
-unsigned long lastMp3ColumeChecked = 0;
+unsigned long lastPlayerBusy = 0;
+unsigned long lastVolumeChecked = 0;
 unsigned long lastBrightChecked = 0;
 unsigned long lastStrip1Changed = 0;
 unsigned long lastBarChanged = 0;
@@ -163,7 +163,7 @@ void loop() {
 
   dfmp3.loop();
 
-  if (now - lastMp3ColumeChecked > 500) {
+  if (now - lastVolumeChecked > 500) {
     int volume = analogRead(PIN_PLAYER_VOLUME);
     volume = map(volume, 0, 4095, 0, 30);
     
@@ -175,7 +175,7 @@ void loop() {
       currentVolume = volume;
     }
 
-    lastMp3ColumeChecked = now;
+    lastVolumeChecked = now;
   }
 
   if (now - lastBrightChecked > 500) {
@@ -188,21 +188,21 @@ void loop() {
 
   int playerBusy = digitalRead(PIN_PLAYER_BUSY);
   if (playerBusy == HIGH) {
-    if (lastMp3Busy == 0) {
-      lastMp3Busy = now;
+    if (lastPlayerBusy == 0) {
+      lastPlayerBusy = now;
     } else {
-      if (now - lastMp3Busy > 2000) {
+      if (now - lastPlayerBusy > 2000) {
         dfmp3.setVolume(DEFAULT_VOLUME);
         dfmp3.delayForResponse(100);
 
         dfmp3.nextTrack();
         dfmp3.delayForResponse(100);
 
-        lastMp3Busy = 0;
+        lastPlayerBusy = 0;
       }
     }
   } else {
-    lastMp3Busy = 0;
+    lastPlayerBusy = 0;
   }
 
   int base = analogRead(PIN_SAMPLE_THRESHOLD);
