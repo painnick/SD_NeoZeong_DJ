@@ -44,6 +44,7 @@ uint32_t stageColor;
 int barHeight;
 int currentVolume = DEFAULT_VOLUME;
 int currentBright = DEFAULT_BRIGHT;
+int currentSampleThreshold = 0;
 
 void colorWipe(Adafruit_NeoPixel& strip, uint32_t c, uint8_t wait) {
   for (uint16_t i = 0; i < strip.numPixels(); i++) {
@@ -132,66 +133,39 @@ void setup() {
     NULL);
 
   pinMode(PIN_PLAYER_BUSY, INPUT);
+  pinMode(PIN_PLAYER_VOLUME, INPUT_PULLDOWN);
+  pinMode(PIN_BRIGHT, INPUT_PULLDOWN);
 
   dfmp3.begin(9600, 1000);
   ESP_LOGI(MAIN_TAG, "dfplayer begin");
   dfmp3.delayForResponse(100);
 
+  // setupAudioInput();
+
   dfmp3.setVolume(currentVolume);
   ESP_LOGI(MAIN_TAG, "Set volume %d", currentVolume);
   dfmp3.delayForResponse(100);
-
-  setupAudioInput();
 
   dfmp3.playMp3FolderTrack(1);
   ESP_LOGI(MAIN_TAG, "Play #%d", 1);
   dfmp3.delayForResponse(100);
 }
 
-unsigned long lastPlayerBusy = 0;
-unsigned long lastVolumeChecked = 0;
-unsigned long lastBrightChecked = 0;
 unsigned long lastStrip1Changed = 0;
 unsigned long lastBarChanged = 0;
 uint8_t maxR = 0;
 uint8_t maxG = 0;
 uint8_t maxB = 0;
 
-void loop() {
-
-  unsigned long now = millis();
-
-  dfmp3.loop();
-
-  if (now - lastVolumeChecked > 500) {
-    int volume = analogRead(PIN_PLAYER_VOLUME);
-    volume = map(volume, 0, 4095, 0, 30);
-    
-    if (currentVolume != volume) {
-      dfmp3.setVolume(currentVolume);
-      ESP_LOGI(MAIN_TAG, "Set volume %d", currentVolume);
-      dfmp3.delayForResponse(100);
-
-      currentVolume = volume;
-    }
-
-    lastVolumeChecked = now;
-  }
-
-  if (now - lastBrightChecked > 500) {
-    int bright = analogRead(PIN_BRIGHT);
-    bright = map(bright, 0, 4095, 0, 256);
-    currentBright = bright;
-
-    lastBrightChecked = now;
-  }
-
+unsigned long lastPlayerBusy = 0;
+void onPlayerBusy(unsigned long now) {
   int playerBusy = digitalRead(PIN_PLAYER_BUSY);
   if (playerBusy == HIGH) {
     if (lastPlayerBusy == 0) {
       lastPlayerBusy = now;
     } else {
       if (now - lastPlayerBusy > 2000) {
+        ESP_LOGW(MAIN_TAG, "Player B.U.S.Y!");
         dfmp3.setVolume(DEFAULT_VOLUME);
         dfmp3.delayForResponse(100);
 
@@ -204,15 +178,75 @@ void loop() {
   } else {
     lastPlayerBusy = 0;
   }
+}
 
-  int base = analogRead(PIN_SAMPLE_THRESHOLD);
-  int sample = adc1_get_raw(ADC_CHANNEL);
-  int diff = sample - base;
+unsigned long lastVolumeChecked = 0;
+void checkPlayerVolume(unsigned long now) {
+  if (now - lastVolumeChecked > 500) {
+    int volume = analogRead(PIN_PLAYER_VOLUME);
+    volume = map(volume, 0, 4095, 0, 20);
+    
+    if (currentVolume != volume) {
+      currentVolume = volume;
 
-  // if (diff > 20) {
-  //   ESP_LOGD(MAIN_TAG, "Base %4d, Sample %4d (%4d)", base, sample, diff);
-  // }
+      dfmp3.setVolume(currentVolume);
+      ESP_LOGI(MAIN_TAG, "Set volume %d", currentVolume);
+      dfmp3.delayForResponse(100);
+    }
 
+    lastVolumeChecked = now;
+  }
+}
+
+unsigned long lastBrightChecked = 0;
+void checkBirght(unsigned long now) {
+  if (now - lastBrightChecked > 500) {
+    int bright = analogRead(PIN_BRIGHT);
+    bright = map(bright, 0, 4095, 0, 256);
+    if (currentBright != bright) {
+      currentBright = bright;
+      ESP_LOGI(MAIN_TAG, "Set Bright %d", currentBright);
+    }
+
+    lastBrightChecked = now;
+  }
+}
+
+#define MAX_SAMPLE_THRESHOLD 100
+int thresholds[MAX_SAMPLE_THRESHOLD] = {-1};
+int thresholdIndex = -1;
+int avgSampleThreshold(int threshold) {
+  thresholdIndex = (thresholdIndex + 1) % MAX_SAMPLE_THRESHOLD;
+  thresholds[thresholdIndex] = threshold;
+
+  int thresholdSum = 0;
+  for (int i = 0; i < MAX_SAMPLE_THRESHOLD; i ++) {
+    if (thresholds[i] == -1) {
+      return threshold;
+    }
+    thresholdSum += threshold;
+  }
+
+  return thresholdSum / MAX_SAMPLE_THRESHOLD;
+}
+
+unsigned long lastSampleThresholdChecked = 0;
+void checkSampleThreshold(unsigned long now) {
+  if (now - lastSampleThresholdChecked > 1000) {
+    int threshold = analogRead(PIN_SAMPLE_THRESHOLD);
+
+    int avgThreshold = avgSampleThreshold(threshold);
+
+    if (currentSampleThreshold != avgThreshold) {
+      currentSampleThreshold = avgThreshold;
+      ESP_LOGI(MAIN_TAG, "Set Sample Threshold %d", currentSampleThreshold);
+    }
+
+    lastSampleThresholdChecked = now;
+  }
+}
+
+void checkStageInfo(unsigned long now, int diff) {
   uint16_t value = map(diff, 0, 127, 0, 255);
   uint32_t color = (diff > 20) ? stripStage.Color(value, 0, 0) : stripStage.Color(0, 0, 0);
 
@@ -235,9 +269,10 @@ void loop() {
     maxR = max(maxR, r);
     maxG = max(maxG, g);
     maxB = max(maxB, b);
-
   }
+}
 
+void checkBarInfo(unsigned long now, int diff) {
   if (now - lastBarChanged > 100) {
     barHeight = 0;
 
@@ -246,4 +281,31 @@ void loop() {
     int barValue = map(diff, 0, 512, 0, STRIP_BAR_SIZE);
     barHeight = max(barHeight, barValue);
   }
+}
+
+void loop() {
+
+  unsigned long now = millis();
+
+  dfmp3.loop();
+
+  onPlayerBusy(now);
+
+  checkPlayerVolume(now);
+  checkBirght(now);
+  checkSampleThreshold(now);
+
+
+
+  int sample = adc1_get_raw(ADC_CHANNEL);
+  int diff = sample - currentSampleThreshold;
+
+  // if (diff > 20) {
+  //   ESP_LOGD(MAIN_TAG, "Base %4d, Sample %4d (%4d)", base, sample, diff);
+  // }
+
+  // checkStageInfo(now, diff);
+  // checkBarInfo(now, diff);
+
+  delay(100);
 }
