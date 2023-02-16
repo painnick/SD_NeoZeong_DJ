@@ -11,7 +11,7 @@
 // 14 outputs PWM signal at boot
 // ============================================================
 #define PIN_PLAYER_BUSY 33
-#define PIN_PLAYER_VOLUME 25
+#define PIN_PLAYER_VOLUME 27
 
 #define PIN_SAMPLE_THRESHOLD 34
 #define PIN_STRIP_STAGE 21
