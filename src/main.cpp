@@ -10,6 +10,8 @@
 #include "Mp3Notify.h"
 #include "AdcUtil.h"
 
+#include "Effect.h"
+
 #define MAIN_TAG "Main"
 
 // ============================================================
@@ -46,14 +48,6 @@ int currentVolume = DEFAULT_VOLUME;
 int currentBright = DEFAULT_BRIGHT;
 int currentSampleThreshold = 0;
 
-void colorWipe(Adafruit_NeoPixel& strip, uint32_t c, uint8_t wait) {
-  for (uint16_t i = 0; i < strip.numPixels(); i++) {
-    strip.setPixelColor(i, c);
-    strip.show();
-    delay(wait);
-  }
-}
-
 void colorHeight(Adafruit_NeoPixel& strip1, Adafruit_NeoPixel& strip2, uint32_t c, int height) {
   for (uint16_t i = 0; i < strip1.numPixels(); i++) {
     strip1.setPixelColor(i, (i < height) ? c : 0);
@@ -67,7 +61,8 @@ void colorHeight(Adafruit_NeoPixel& strip1, Adafruit_NeoPixel& strip2, uint32_t 
 
 void taskStage(void* params) {
   while(true) {
-    colorWipe(stripStage, stageColor, COLOR_WIPE_WAIT);
+    stripStage.setBrightness(currentBright);
+    theaterChaseRainbow(stripStage, 100);
   }
   vTaskDelete(NULL);
 }
@@ -140,7 +135,7 @@ void setup() {
   ESP_LOGI(MAIN_TAG, "dfplayer begin");
   dfmp3.delayForResponse(100);
 
-  // setupAudioInput();
+  setupAudioInput();
 
   dfmp3.setVolume(currentVolume);
   ESP_LOGI(MAIN_TAG, "Set volume %d", currentVolume);
@@ -300,12 +295,12 @@ void loop() {
   int sample = adc1_get_raw(ADC_CHANNEL);
   int diff = sample - currentSampleThreshold;
 
-  // if (diff > 20) {
-  //   ESP_LOGD(MAIN_TAG, "Base %4d, Sample %4d (%4d)", base, sample, diff);
-  // }
+  if (diff > 20) {
+    ESP_LOGD(MAIN_TAG, "Sample %4d (%4d)", sample, diff);
+  }
 
-  // checkStageInfo(now, diff);
-  // checkBarInfo(now, diff);
+  checkStageInfo(now, diff);
+  checkBarInfo(now, diff);
 
   delay(100);
 }
