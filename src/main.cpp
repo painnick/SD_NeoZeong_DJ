@@ -31,7 +31,6 @@ DfMp3 dfmp3(mySerial);
   #include <avr/power.h>
 #endif
 
-#define DEFAULT_BRIGHT 64
 
 #define STRIP_STAGE_SIZE 65
 #define STRIP_BAR_SIZE 8
@@ -45,23 +44,10 @@ Adafruit_NeoPixel stripBar2 = Adafruit_NeoPixel(STRIP_BAR_SIZE, PIN_STRIP_BAR2, 
 uint32_t stageColor;
 int barHeight;
 int currentVolume = DEFAULT_VOLUME;
-int currentBright = DEFAULT_BRIGHT;
 int currentSampleThreshold = 0;
-
-void colorHeight(Adafruit_NeoPixel& strip1, Adafruit_NeoPixel& strip2, uint32_t c, int height) {
-  for (uint16_t i = 0; i < strip1.numPixels(); i++) {
-    strip1.setPixelColor(i, (i < height) ? c : 0);
-  }
-  for (uint16_t i = 0; i < strip2.numPixels(); i++) {
-    strip2.setPixelColor(i, (i < height) ? c : 0);
-  }
-  strip1.show();
-  strip2.show();
-}
 
 void taskStage(void* params) {
   while(true) {
-    stripStage.setBrightness(currentBright);
     theaterChaseRainbow(stripStage, 100);
   }
   vTaskDelete(NULL);
@@ -234,7 +220,7 @@ void checkSampleThreshold(unsigned long now) {
 
     if (currentSampleThreshold != avgThreshold) {
       currentSampleThreshold = avgThreshold;
-      ESP_LOGI(MAIN_TAG, "Set Sample Threshold %d", currentSampleThreshold);
+      // ESP_LOGI(MAIN_TAG, "Set Sample Threshold %d", currentSampleThreshold);
     }
 
     lastSampleThresholdChecked = now;
@@ -295,9 +281,9 @@ void loop() {
   int sample = adc1_get_raw(ADC_CHANNEL);
   int diff = sample - currentSampleThreshold;
 
-  if (diff > 20) {
-    ESP_LOGD(MAIN_TAG, "Sample %4d (%4d)", sample, diff);
-  }
+  // if (diff > 20) {
+  //   ESP_LOGD(MAIN_TAG, "Sample %4d (%4d)", sample, diff);
+  // }
 
   checkStageInfo(now, diff);
   checkBarInfo(now, diff);

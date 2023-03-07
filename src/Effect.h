@@ -7,6 +7,10 @@
   #include <avr/power.h>
 #endif
 
+#define DEFAULT_BRIGHT 30
+
+int currentBright = DEFAULT_BRIGHT;
+
 // Input a value 0 to 255 to get a color value.
 // The colours are a transition r - g - b - back to r.
 uint32_t Wheel(Adafruit_NeoPixel& strip, byte WheelPos) {
@@ -61,6 +65,8 @@ void theaterChaseRainbow(Adafruit_NeoPixel& strip, uint8_t wait) {
       for (uint16_t i=0; i < strip.numPixels(); i=i+3) {
         strip.setPixelColor(i+q, Wheel(strip, (i+j) % 255));    //turn every third pixel on
       }
+
+      strip.setBrightness(currentBright);
       strip.show();
 
       delay(wait);
@@ -70,4 +76,15 @@ void theaterChaseRainbow(Adafruit_NeoPixel& strip, uint8_t wait) {
       }
     }
   }
+}
+
+void colorHeight(Adafruit_NeoPixel& strip1, Adafruit_NeoPixel& strip2, uint32_t c, int height) {
+  for (uint16_t i = 0; i < strip1.numPixels(); i++) {
+    strip1.setPixelColor(i, (i < height) ? c : 0);
+  }
+  for (uint16_t i = 0; i < strip2.numPixels(); i++) {
+    strip2.setPixelColor(i, (i < height) ? c : 0);
+  }
+  strip1.show();
+  strip2.show();
 }
