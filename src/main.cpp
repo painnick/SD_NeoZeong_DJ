@@ -58,9 +58,9 @@ void taskBar(void* params) {
   int lastHeight = 0;
 
   while(true) {
-    // if (lastHeight != 0) {
-    //   ESP_LOGI(MAIN_TAG, "Bar %d", lastHeight);
-    // }
+    if (lastHeight != 0) {
+      ESP_LOGD(MAIN_TAG, "Bar %d", lastHeight);
+    }
     if (barHeight > lastHeight) {
       lastHeight = barHeight;
     } else {
@@ -132,11 +132,7 @@ void setup() {
   dfmp3.delayForResponse(100);
 }
 
-unsigned long lastStrip1Changed = 0;
 unsigned long lastBarChanged = 0;
-uint8_t maxR = 0;
-uint8_t maxG = 0;
-uint8_t maxB = 0;
 
 unsigned long lastPlayerBusy = 0;
 void onPlayerBusy(unsigned long now) {
@@ -227,32 +223,6 @@ void checkSampleThreshold(unsigned long now) {
   }
 }
 
-void checkStageInfo(unsigned long now, int diff) {
-  uint16_t value = map(diff, 0, 127, 0, 255);
-  uint32_t color = (diff > 20) ? stripStage.Color(value, 0, 0) : stripStage.Color(0, 0, 0);
-
-  uint8_t r = (color >> 16) & 0xff;
-  uint8_t g = (color >> 8) & 0xff;
-  uint8_t b = color & 0xff;
-
-  if (now - lastStrip1Changed > STRIP_STAGE_SIZE * COLOR_WIPE_WAIT) {
-    stageColor = stripStage.Color(maxR, maxG, maxB);
-    // if (maxR + maxG + maxB != 0) {
-    //   ESP_LOGI(MAIN_TAG, "COLOR %d, %d, %d", maxR, maxG, maxB);
-    // }
-    // Reset
-    maxR = r;
-    maxG = g;
-    maxB = g;
-
-    lastStrip1Changed = now;
-  } else {
-    maxR = max(maxR, r);
-    maxG = max(maxG, g);
-    maxB = max(maxB, b);
-  }
-}
-
 void checkBarInfo(unsigned long now, int diff) {
   if (now - lastBarChanged > 100) {
     barHeight = 0;
@@ -285,7 +255,6 @@ void loop() {
   //   ESP_LOGD(MAIN_TAG, "Sample %4d (%4d)", sample, diff);
   // }
 
-  checkStageInfo(now, diff);
   checkBarInfo(now, diff);
 
   delay(100);
