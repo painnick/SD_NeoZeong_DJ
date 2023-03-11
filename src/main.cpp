@@ -127,7 +127,7 @@ void setup() {
   ESP_LOGI(MAIN_TAG, "Set volume %d", currentVolume);
   dfmp3.delayForResponse(100);
 
-  dfmp3.playMp3FolderTrack(1);
+  dfmp3.playRandomTrackFromAll();
   ESP_LOGI(MAIN_TAG, "Play #%d", 1);
   dfmp3.delayForResponse(100);
 }
@@ -141,12 +141,12 @@ void onPlayerBusy(unsigned long now) {
     if (lastPlayerBusy == 0) {
       lastPlayerBusy = now;
     } else {
-      if (now - lastPlayerBusy > 2000) {
+      if (now - lastPlayerBusy > 1000 * 30) {
         ESP_LOGW(MAIN_TAG, "Player B.U.S.Y!");
         dfmp3.setVolume(DEFAULT_VOLUME);
         dfmp3.delayForResponse(100);
 
-        dfmp3.nextTrack();
+        dfmp3.playRandomTrackFromAll();
         dfmp3.delayForResponse(100);
 
         lastPlayerBusy = 0;
