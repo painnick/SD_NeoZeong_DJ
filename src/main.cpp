@@ -121,36 +121,49 @@ void setup() {
   ESP_LOGI(MAIN_TAG, "dfplayer begin");
   dfmp3.delayForResponse(100);
 
+  dfmp3.stop();
+  dfmp3.delayForResponse(100);
+
   setupAudioInput();
 
-  dfmp3.setVolume(currentVolume);
-  ESP_LOGI(MAIN_TAG, "Set volume %d", currentVolume);
-  dfmp3.delayForResponse(100);
-
-  dfmp3.playRandomTrackFromAll();
-  ESP_LOGI(MAIN_TAG, "Play #%d", 1);
-  dfmp3.delayForResponse(100);
 }
 
 unsigned long lastBarChanged = 0;
 
 unsigned long lastPlayerBusy = 0;
+bool firstTime = true;
 void onPlayerBusy(unsigned long now) {
   int playerBusy = digitalRead(PIN_PLAYER_BUSY);
   if (playerBusy == HIGH) {
-    if (lastPlayerBusy == 0) {
-      lastPlayerBusy = now;
-    } else {
-      if (now - lastPlayerBusy > 1000 * 30) {
-        ESP_LOGW(MAIN_TAG, "Player B.U.S.Y!");
+    if (firstTime) {
+        ESP_LOGI(MAIN_TAG, "Play Start!");
         dfmp3.setVolume(DEFAULT_VOLUME);
         dfmp3.delayForResponse(100);
 
         dfmp3.playRandomTrackFromAll();
         dfmp3.delayForResponse(100);
 
-        lastPlayerBusy = 0;
-      }
+      firstTime = false;
+    } else {
+      // if (lastPlayerBusy == 0) {
+      //   ESP_LOGI(MAIN_TAG, "Player B.U.S.Y!");
+
+      //   dfmp3.stop();
+      //   dfmp3.delayForResponse(100);
+
+      //   lastPlayerBusy = now;
+      // } else {
+      //   if (now - lastPlayerBusy > 1000 * 30) {
+      //     ESP_LOGI(MAIN_TAG, "Play Next! BR %d VOL %d TH %d", currentBright, currentVolume, currentSampleThreshold);
+      //     dfmp3.setVolume(DEFAULT_VOLUME);
+      //     dfmp3.delayForResponse(100);
+
+      //     dfmp3.nextTrack();
+      //     dfmp3.delayForResponse(100);
+
+      //     lastPlayerBusy = 0;
+      //   }
+      // }
     }
   } else {
     lastPlayerBusy = 0;
