@@ -95,7 +95,7 @@ unsigned long lastBarChecked = 0;
                 }
             }
         }
-        delay(10);
+        delay(1);
     }
 }
 
