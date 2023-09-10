@@ -31,7 +31,7 @@ DfMp3 dfmp3(mySerial);
 #define STRIP_BAR_MAX_HEIGHT 8
 
 #define SAMPLE_GAIN_MIN 0 // 800
-#define SAMPLE_GAIN_MAX (512 + 128) // 2048
+#define SAMPLE_GAIN_MAX 511 // 2048
 
 #define SAMPLES_QUEUE_SIZE 1
 
