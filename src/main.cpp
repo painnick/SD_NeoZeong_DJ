@@ -14,7 +14,8 @@
 // ------------------------------------------------------------
 // Volume : 0~30
 // ============================================================
-#define DEFAULT_VOLUME 10
+int MP3_VOLUME = 10;
+
 HardwareSerial mySerial(UART_PLAYER);
 DfMp3 dfmp3(mySerial);
 
@@ -22,7 +23,6 @@ DfMp3 dfmp3(mySerial);
 // Neopixel
 // ============================================================
 #include <Adafruit_NeoPixel.h>
-#include "BluetoothSerial.h"
 
 #ifdef __AVR__
 #include <avr/power.h>
@@ -40,10 +40,25 @@ Adafruit_NeoPixel stripStage = Adafruit_NeoPixel(STRIP_STAGE_SIZE, PIN_STRIP_STA
 Adafruit_NeoPixel stripBar1 = Adafruit_NeoPixel(STRIP_BAR_MAX_HEIGHT, PIN_STRIP_BAR1, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel stripBar2 = Adafruit_NeoPixel(STRIP_BAR_MAX_HEIGHT, PIN_STRIP_BAR2, NEO_GRB + NEO_KHZ800);
 
-int GlobalBarHeight = 0;
-int GlobalCurrentSample = 0;
+// ============================================================
+// Bluetooth
+// ============================================================
+#include "BluetoothSerial.h"
 
 BluetoothSerial SerialBT;
+
+// ============================================================
+// EEPROM
+// ============================================================
+#include <EEPROM.h>
+
+#define EEPROM_SIZE (1 + 4 + 4)
+#define EEPROM_ADDR_VOLUME 0
+#define EEPROM_ADDR_GAIN_MIN 1
+#define EEPROM_ADDR_GAIN_MAX (1 + 4)
+
+int GlobalBarHeight = 0;
+int GlobalCurrentSample = 0;
 
 [[noreturn]] void taskStage(void *params) {
     while (true) {
@@ -81,7 +96,7 @@ unsigned long lastBarChecked = 0;
             lastBarChecked = now;
             off = false;
         } else {
-            if (now - lastBarChecked > 100) {
+            if (now - lastBarChecked > 200) {
                 lastHeight--;
                 if (lastHeight < 0) {
                     lastHeight = 0;
@@ -123,6 +138,8 @@ void processCommand(const String &cmd) {
         sscanf(cmd.c_str(), "volume %u", &vol);
         dfmp3.setVolume(vol);
         dfmp3.loop();
+        EEPROM.writeUChar(EEPROM_ADDR_VOLUME, vol);
+        EEPROM.commit();
     } else if (cmd.equals("gain")) {
         SerialBT.printf("Gain is %d ~ %d\n", SAMPLE_GAIN_MIN, SAMPLE_GAIN_MAX);
     } else if(cmd.startsWith("gain ")) {
@@ -130,12 +147,20 @@ void processCommand(const String &cmd) {
         sscanf(cmd.c_str(), "gain %d %d", &minGain, &maxGain);
         SAMPLE_GAIN_MIN = minGain;
         SAMPLE_GAIN_MAX = maxGain;
+        EEPROM.writeInt(EEPROM_ADDR_GAIN_MIN, SAMPLE_GAIN_MIN);
+        EEPROM.writeInt(EEPROM_ADDR_GAIN_MAX, SAMPLE_GAIN_MAX);
+        EEPROM.commit();
     }
 }
 
 void setup() {
 
     ESP_LOGI(MAIN_TAG, "Setup!");
+
+    EEPROM.begin(EEPROM_SIZE);
+    MP3_VOLUME = EEPROM.read(EEPROM_ADDR_VOLUME);
+    SAMPLE_GAIN_MIN = EEPROM.readInt(EEPROM_ADDR_GAIN_MIN);
+    SAMPLE_GAIN_MAX = EEPROM.readInt(EEPROM_ADDR_GAIN_MAX);
 
     xTaskCreate(
             taskStage,
@@ -183,7 +208,7 @@ void onPlayerBusy(unsigned long now) {
     if (playerBusy == HIGH) {
         if (firstTime) {
             ESP_LOGI(MAIN_TAG, "Play Start!");
-            dfmp3.setVolume(DEFAULT_VOLUME);
+            dfmp3.setVolume(MP3_VOLUME);
             dfmp3.delayForResponse(100);
 
             dfmp3.playRandomTrackFromAll();
