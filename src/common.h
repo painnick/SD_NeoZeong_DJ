@@ -10,25 +10,23 @@
 // 13 outputs PWM signal at boot
 // 14 outputs PWM signal at boot
 // ============================================================
-#define PIN_PLAYER_BUSY 33
-#define PIN_PLAYER_VOLUME 27
+#define PIN_PLAYER_BUSY 35
 
-#define PIN_SAMPLE_THRESHOLD 34
-#define PIN_STRIP_STAGE 21
-#define PIN_STRIP_BAR1 22
-#define PIN_STRIP_BAR2 23
-#define PIN_BRIGHT 26
+#define PIN_STRIP_STAGE 27
+#define PIN_STRIP_BAR1 26
+#define PIN_STRIP_BAR2 25
 
 // ============================================================
 // RX/TX for dfplayer
 // ------------------------------------------------------------
-// Default : GPIO16, 17
+// TX 33
+// RX 32
 // ============================================================
 #define UART_PLAYER 2
 
 // ============================================================
 // ADC : Mic Sensor
 // ------------------------------------------------------------
-// Default : GPIO35
+// Default : GPIO39
 // ============================================================
-#define ADC_CHANNEL ADC1_CHANNEL_7
+#define ADC_CHANNEL ADC1_CHANNEL_3

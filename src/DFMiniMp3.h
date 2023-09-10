@@ -32,6 +32,9 @@ License along with DFMiniMp3.  If not, see
 
 #define DFPLAYER_TAG "dfplayer"
 
+#define TxPin 33
+#define RxPin 32
+
 enum DfMp3_Error
 {
     // from device
@@ -204,7 +207,7 @@ public:
 
     void begin(unsigned long baud = 9600, unsigned long timeout = 10000)
     {
-        _serial.begin(baud);
+        _serial.begin(baud, SERIAL_8N1, RxPin, TxPin);
         _serial.setTimeout(timeout);
         delay(1000);
         _lastSend = millis();
