@@ -27,9 +27,13 @@ DfMp3 dfmp3(mySerial);
 #include <avr/power.h>
 #endif
 
-
 #define STRIP_STAGE_SIZE 65
 #define STRIP_BAR_MAX_HEIGHT 8
+
+#define SAMPLE_GAIN_MIN 0 // 800
+#define SAMPLE_GAIN_MAX (512 + 128) // 2048
+
+#define SAMPLES_QUEUE_SIZE 1
 
 Adafruit_NeoPixel stripStage = Adafruit_NeoPixel(STRIP_STAGE_SIZE, PIN_STRIP_STAGE, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel stripBar1 = Adafruit_NeoPixel(STRIP_BAR_MAX_HEIGHT, PIN_STRIP_BAR1, NEO_GRB + NEO_KHZ800);
@@ -66,7 +70,8 @@ unsigned long lastBarChecked = 0;
         unsigned long now = millis();
         int capturedGlobalBarHeight = GlobalBarHeight;
         if (capturedGlobalBarHeight > lastHeight) {
-            ESP_LOGD(MAIN_TAG, "Bar == UP == Height %d (Last %d) (%4d)", capturedGlobalBarHeight, lastHeight, GlobalCurrentSample);
+            ESP_LOGD(MAIN_TAG, "Bar == UP == Height %d (Last %d) (%4d)", capturedGlobalBarHeight, lastHeight,
+                     GlobalCurrentSample);
             lastHeight = capturedGlobalBarHeight;
             uint32_t color = calcColor(min(lastHeight, STRIP_BAR_MAX_HEIGHT));
             colorHeight(stripBar1, stripBar2, color, lastHeight);
@@ -81,7 +86,8 @@ unsigned long lastBarChecked = 0;
                 }
                 if (!off) {
                     lastHeight = max(lastHeight, 0);
-                    ESP_LOGD(MAIN_TAG, "Bar .-down-.  Height %d (Current %d) (%4d)", lastHeight, capturedGlobalBarHeight, GlobalCurrentSample);
+                    ESP_LOGD(MAIN_TAG, "Bar .-down-.  Height %d (Current %d) (%4d)", lastHeight,
+                             capturedGlobalBarHeight, GlobalCurrentSample);
 
                     uint32_t color = calcColor(min(lastHeight, STRIP_BAR_MAX_HEIGHT));
                     colorHeight(stripBar1, stripBar2, color, lastHeight);
@@ -89,7 +95,7 @@ unsigned long lastBarChecked = 0;
                 }
             }
         }
-        delay(30);
+        delay(10);
     }
 }
 
@@ -114,8 +120,6 @@ void setup() {
             nullptr);
 
     pinMode(PIN_PLAYER_BUSY, INPUT);
-    pinMode(PIN_PLAYER_VOLUME, INPUT_PULLDOWN);
-    pinMode(PIN_BRIGHT, INPUT_PULLDOWN);
 
     dfmp3.begin(9600, 1000);
     ESP_LOGI(MAIN_TAG, "dfplayer begin");
@@ -148,20 +152,19 @@ void onPlayerBusy(unsigned long now) {
 }
 
 void calcBarHeight(int diff) {
-    int barValue = map(diff, 1400, 2400 /*4095 */, 0, STRIP_BAR_MAX_HEIGHT);
+    int barValue = map(diff, SAMPLE_GAIN_MIN, SAMPLE_GAIN_MAX, 0, STRIP_BAR_MAX_HEIGHT);
     GlobalBarHeight = max(0, min(barValue, STRIP_BAR_MAX_HEIGHT));
 }
 
-#define QUEUE_SIZE 5
-int Queue[QUEUE_SIZE] = {-1};
+int Queue[SAMPLES_QUEUE_SIZE] = {-1};
 int queueIndex = -1;
 
 void averageSamples(int sample) {
-    queueIndex = (queueIndex + 1) % QUEUE_SIZE;
+    queueIndex = (queueIndex + 1) % SAMPLES_QUEUE_SIZE;
     Queue[queueIndex] = sample;
 
     int sum = 0, count = 0;
-    for (int val : Queue) {
+    for (int val: Queue) {
         if (val > -1) {
             sum += val;
             count++;
@@ -170,7 +173,7 @@ void averageSamples(int sample) {
     GlobalCurrentSample = sum / count;
 }
 
-unsigned long lastChecked = millis();
+//unsigned long lastChecked = millis();
 void loop() {
     unsigned long now = millis();
 
@@ -182,7 +185,7 @@ void loop() {
     averageSamples(sample);
 
 //    if (now - lastChecked > 100) {
-//        ESP_LOGD(MAIN_TAG, "Sample %d => %d", sample,GlobalCurrentSample);
+//        ESP_LOGD(MAIN_TAG, "Sample %d => %d", sample, GlobalCurrentSample);
 //        lastChecked = now;
 //    }
 
