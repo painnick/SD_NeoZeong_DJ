@@ -124,6 +124,7 @@ void sendCommandList() {
     SerialBT.println("volume");
     SerialBT.println("gain %d %d");
     SerialBT.println("gain");
+    SerialBT.println("next");
     SerialBT.println("--- End ---");
 }
 
@@ -133,7 +134,7 @@ void processCommand(const String &cmd) {
     } else if (cmd.equals("volume")) {
         uint8_t volume = dfmp3.getVolume();
         SerialBT.printf("Volume is %d\n", volume);
-    } else if(cmd.startsWith("volume ")) {
+    } else if (cmd.startsWith("volume ")) {
         uint8_t vol = 0;
         sscanf(cmd.c_str(), "volume %u", &vol);
         dfmp3.setVolume(vol);
@@ -142,7 +143,7 @@ void processCommand(const String &cmd) {
         EEPROM.commit();
     } else if (cmd.equals("gain")) {
         SerialBT.printf("Gain is %d ~ %d\n", SAMPLE_GAIN_MIN, SAMPLE_GAIN_MAX);
-    } else if(cmd.startsWith("gain ")) {
+    } else if (cmd.startsWith("gain ")) {
         int minGain = 0, maxGain = 0;
         sscanf(cmd.c_str(), "gain %d %d", &minGain, &maxGain);
         SAMPLE_GAIN_MIN = minGain;
@@ -150,6 +151,10 @@ void processCommand(const String &cmd) {
         EEPROM.writeInt(EEPROM_ADDR_GAIN_MIN, SAMPLE_GAIN_MIN);
         EEPROM.writeInt(EEPROM_ADDR_GAIN_MAX, SAMPLE_GAIN_MAX);
         EEPROM.commit();
+    } else if (cmd.equals("next")) {
+        dfmp3.nextTrack();
+    } else {
+        SerialBT.printf("Unknown command\n");
     }
 }
 
