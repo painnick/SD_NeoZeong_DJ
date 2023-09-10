@@ -22,6 +22,7 @@ DfMp3 dfmp3(mySerial);
 // Neopixel
 // ============================================================
 #include <Adafruit_NeoPixel.h>
+#include "BluetoothSerial.h"
 
 #ifdef __AVR__
 #include <avr/power.h>
@@ -30,8 +31,8 @@ DfMp3 dfmp3(mySerial);
 #define STRIP_STAGE_SIZE 65
 #define STRIP_BAR_MAX_HEIGHT 8
 
-#define SAMPLE_GAIN_MIN 0 // 800
-#define SAMPLE_GAIN_MAX 511 // 2048
+int SAMPLE_GAIN_MIN = 0; // 800
+int SAMPLE_GAIN_MAX = 511; // 2048
 
 #define SAMPLES_QUEUE_SIZE 1
 
@@ -41,6 +42,8 @@ Adafruit_NeoPixel stripBar2 = Adafruit_NeoPixel(STRIP_BAR_MAX_HEIGHT, PIN_STRIP_
 
 int GlobalBarHeight = 0;
 int GlobalCurrentSample = 0;
+
+BluetoothSerial SerialBT;
 
 [[noreturn]] void taskStage(void *params) {
     while (true) {
@@ -99,6 +102,37 @@ unsigned long lastBarChecked = 0;
     }
 }
 
+void sendCommandList() {
+    SerialBT.println("--- Commands ---");
+    SerialBT.println("help");
+    SerialBT.println("volume %d");
+    SerialBT.println("volume");
+    SerialBT.println("gain %d %d");
+    SerialBT.println("gain");
+    SerialBT.println("--- End ---");
+}
+
+void processCommand(const String &cmd) {
+    if (cmd.equals("help")) {
+        sendCommandList();
+    } else if (cmd.equals("volume")) {
+        uint8_t volume = dfmp3.getVolume();
+        SerialBT.printf("Volume is %d\n", volume);
+    } else if(cmd.startsWith("volume ")) {
+        uint8_t vol = 0;
+        sscanf(cmd.c_str(), "volume %u", &vol);
+        dfmp3.setVolume(vol);
+        dfmp3.loop();
+    } else if (cmd.equals("gain")) {
+        SerialBT.printf("Gain is %d ~ %d\n", SAMPLE_GAIN_MIN, SAMPLE_GAIN_MAX);
+    } else if(cmd.startsWith("gain ")) {
+        int minGain = 0, maxGain = 0;
+        sscanf(cmd.c_str(), "gain %d %d", &minGain, &maxGain);
+        SAMPLE_GAIN_MIN = minGain;
+        SAMPLE_GAIN_MAX = maxGain;
+    }
+}
+
 void setup() {
 
     ESP_LOGI(MAIN_TAG, "Setup!");
@@ -129,6 +163,17 @@ void setup() {
     dfmp3.delayForResponse(100);
 
     setupAudioInput();
+
+    SerialBT.begin("DJ Drop the BEAT!");
+    SerialBT.register_callback([](esp_spp_cb_event_t evt, esp_spp_cb_param_t *param) {
+        switch (evt) {
+            case ESP_SPP_SRV_OPEN_EVT:
+                sendCommandList();
+                break;
+            default:
+                break;
+        }
+    });
 }
 
 bool firstTime = true;
@@ -190,4 +235,9 @@ void loop() {
 //    }
 
     calcBarHeight(GlobalCurrentSample);
+
+    if (SerialBT.available()) {
+        String btCmd = SerialBT.readString();
+        processCommand(btCmd);
+    }
 }
