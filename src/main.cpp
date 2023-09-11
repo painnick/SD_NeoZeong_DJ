@@ -196,6 +196,8 @@ void onPlayerBusy(unsigned long now) {
 
 #define COEF3 3
 #define SENSITIVITY 30 // decrease for better sensitivity
+#define MAX_AMPLITUDE 250
+#define MAX_TARGET_AMPLITUDE (MAX_AMPLITUDE / 2)
 
 void displayEnvelope() {
     unsigned int signalMax = 0;
@@ -214,10 +216,10 @@ void displayEnvelope() {
     unsigned int peakToPeak = signalMax - signalMin;
     int amplitude = peakToPeak - SENSITIVITY;
     if (amplitude < 0) amplitude = 0;
-    else if (amplitude > 500) amplitude = 500;
-//    ESP_LOGD(MAIN_TAG, "amplitude : %3d", amplitude);
+    else if (amplitude > MAX_AMPLITUDE) amplitude = MAX_AMPLITUDE;
+    ESP_LOGD(MAIN_TAG, "amplitude : %3d", amplitude);
 
-    GlobalBarHeight = map(amplitude, 0, 250, 0, STRIP_BAR_MAX_HEIGHT);
+    GlobalBarHeight = map(amplitude, 0, MAX_TARGET_AMPLITUDE, 0, STRIP_BAR_MAX_HEIGHT);
     GlobalBarHeight = min(GlobalBarHeight, STRIP_BAR_MAX_HEIGHT);
 }
 
