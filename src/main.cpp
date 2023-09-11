@@ -66,18 +66,6 @@ int GlobalCurrentSample = 0;
     }
 }
 
-uint32_t calcColor(int height) {
-    uint32_t color = 0;
-    if (height < 3) {
-        color = Adafruit_NeoPixel::Color(0, 0, currentBright);
-    } else if (height < 5) {
-        color = Adafruit_NeoPixel::Color(0, currentBright, 0);
-    } else {
-        color = Adafruit_NeoPixel::Color(currentBright, 0, 0);
-    }
-    return color;
-}
-
 unsigned long lastBarChecked = 0;
 
 [[noreturn]] void taskBar(void *params) {

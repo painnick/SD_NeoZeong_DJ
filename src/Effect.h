@@ -91,3 +91,15 @@ void colorHeight(Adafruit_NeoPixel &strip1, Adafruit_NeoPixel &strip2, uint32_t 
     strip1.show();
     strip2.show();
 }
+
+uint32_t calcColor(int height) {
+    uint32_t color = 0;
+    if (height < 3) {
+        color = Adafruit_NeoPixel::Color(0, 0, currentBright);
+    } else if (height < 5) {
+        color = Adafruit_NeoPixel::Color(0, currentBright, 0);
+    } else {
+        color = Adafruit_NeoPixel::Color(currentBright, 0, 0);
+    }
+    return color;
+}
