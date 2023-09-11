@@ -3,7 +3,6 @@
 #include "common.h"
 #include "DFMiniMp3.h"
 #include "Mp3Notify.h"
-#include "AdcUtil.h"
 
 #include "Effect.h"
 
@@ -34,8 +33,6 @@ DfMp3 dfmp3(mySerial);
 int SAMPLE_GAIN_MIN = 0; // 800
 int SAMPLE_GAIN_MAX = 511; // 2048
 
-#define SAMPLES_QUEUE_SIZE 1
-
 Adafruit_NeoPixel stripStage = Adafruit_NeoPixel(STRIP_STAGE_SIZE, PIN_STRIP_STAGE, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel stripBar1 = Adafruit_NeoPixel(STRIP_BAR_MAX_HEIGHT, PIN_STRIP_BAR1, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel stripBar2 = Adafruit_NeoPixel(STRIP_BAR_MAX_HEIGHT, PIN_STRIP_BAR2, NEO_GRB + NEO_KHZ800);
@@ -43,9 +40,13 @@ Adafruit_NeoPixel stripBar2 = Adafruit_NeoPixel(STRIP_BAR_MAX_HEIGHT, PIN_STRIP_
 // ============================================================
 // Bluetooth
 // ============================================================
+//#define USE_BLUETOOTH 1
+
+#ifdef USE_BLUETOOTH
 #include "BluetoothSerial.h"
 
 BluetoothSerial SerialBT;
+#endif
 
 // ============================================================
 // EEPROM
@@ -56,6 +57,62 @@ BluetoothSerial SerialBT;
 #define EEPROM_ADDR_VOLUME 0
 #define EEPROM_ADDR_GAIN_MIN 1
 #define EEPROM_ADDR_GAIN_MAX (1 + 4)
+
+// ============================================================
+// I2S
+// ============================================================
+#include "driver/i2s.h"
+#include "I2SMEMSSampler.h"
+
+I2SSampler *i2sSampler = NULL;
+
+// i2s config for reading from left channel of I2S
+i2s_config_t i2sMemsConfigLeftChannel = {
+        .mode = (i2s_mode_t) (I2S_MODE_MASTER | I2S_MODE_RX),
+        .sample_rate = 16000,
+        .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
+        .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT,
+        .communication_format = i2s_comm_format_t(I2S_COMM_FORMAT_I2S),
+        .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
+        .dma_buf_count = 4,
+        .dma_buf_len = 1024,
+        .use_apll = false,
+        .tx_desc_auto_clear = false,
+        .fixed_mclk = 0};
+
+// i2s pins
+i2s_pin_config_t i2sPins = {
+        .bck_io_num = GPIO_NUM_17,
+        .ws_io_num = GPIO_NUM_18,
+        .data_out_num = I2S_PIN_NO_CHANGE,
+        .data_in_num = GPIO_NUM_39};
+
+// how many samples to read at once
+const int SAMPLE_SIZE = 16000 / 100;
+
+// Task to write samples to our server
+void i2sMemsWriterTask(void *param) {
+    auto *sampler = (I2SSampler *) param;
+    auto *samples = (int16_t *) malloc(sizeof(uint16_t) * SAMPLE_SIZE);
+    if (!samples) {
+        Serial.println("Failed to allocate memory for samples");
+        return;
+    }
+    while (true) {
+        int samples_read = sampler->read(samples, SAMPLE_SIZE);
+        if (samples_read > 2) {
+            uint16_t maxV = 0;
+            for (int i = 0; i < samples_read; i++) {
+                uint16_t val = samples[i];
+                maxV = val > maxV ? val : maxV;
+            }
+            ESP_LOGD(MAIN_TAG, "I2S Read (%d) Max %10u [%10u %10u %10u %10u %10u %10u %10u %10u %10u %10u]", samples_read, maxV, samples[0], samples[1],
+                     samples[2], samples[3], samples[4], samples[5], samples[6], samples[7], samples[8], samples[9]);
+        }
+    }
+}
+
+// ============================================================
 
 int GlobalBarHeight = 0;
 int GlobalCurrentSample = 0;
@@ -105,6 +162,7 @@ unsigned long lastBarChecked = 0;
     }
 }
 
+#ifdef USE_BLUETOOTH
 void sendCommandList() {
     SerialBT.println("--- Commands ---");
     SerialBT.println("help");
@@ -145,6 +203,7 @@ void processCommand(const String &cmd) {
         SerialBT.printf("Unknown command\n");
     }
 }
+#endif
 
 void setup() {
 
@@ -154,6 +213,12 @@ void setup() {
     MP3_VOLUME = EEPROM.read(EEPROM_ADDR_VOLUME);
     SAMPLE_GAIN_MIN = EEPROM.readInt(EEPROM_ADDR_GAIN_MIN);
     SAMPLE_GAIN_MAX = EEPROM.readInt(EEPROM_ADDR_GAIN_MAX);
+
+    i2sSampler = new I2SMEMSSampler(I2S_NUM_0, i2sPins, i2sMemsConfigLeftChannel, false);
+    i2sSampler->start();
+
+    TaskHandle_t i2sMemsWriterTaskHandle;
+    xTaskCreatePinnedToCore(i2sMemsWriterTask, "I2S Writer Task", 4096, i2sSampler, 1, &i2sMemsWriterTaskHandle, 1);
 
     xTaskCreate(
             taskStage,
@@ -180,8 +245,7 @@ void setup() {
     dfmp3.stop();
     dfmp3.delayForResponse(100);
 
-    setupAudioInput();
-
+#ifdef USE_BLUETOOTH
     SerialBT.begin("DJ Drop the BEAT!");
     SerialBT.register_callback([](esp_spp_cb_event_t evt, esp_spp_cb_param_t *param) {
         switch (evt) {
@@ -192,6 +256,7 @@ void setup() {
                 break;
         }
     });
+#endif
 }
 
 bool firstTime = true;
@@ -219,23 +284,6 @@ void calcBarHeight(int diff) {
     GlobalBarHeight = max(0, min(barValue, STRIP_BAR_MAX_HEIGHT));
 }
 
-int Queue[SAMPLES_QUEUE_SIZE] = {-1};
-int queueIndex = -1;
-
-void averageSamples(int sample) {
-    queueIndex = (queueIndex + 1) % SAMPLES_QUEUE_SIZE;
-    Queue[queueIndex] = sample;
-
-    int sum = 0, count = 0;
-    for (int val: Queue) {
-        if (val > -1) {
-            sum += val;
-            count++;
-        }
-    }
-    GlobalCurrentSample = sum / count;
-}
-
 //unsigned long lastChecked = millis();
 void loop() {
     unsigned long now = millis();
@@ -244,9 +292,6 @@ void loop() {
 
     onPlayerBusy(now);
 
-    int sample = adc1_get_raw(ADC_CHANNEL);
-    averageSamples(sample);
-
 //    if (now - lastChecked > 100) {
 //        ESP_LOGD(MAIN_TAG, "Sample %d => %d", sample, GlobalCurrentSample);
 //        lastChecked = now;
@@ -254,8 +299,10 @@ void loop() {
 
     calcBarHeight(GlobalCurrentSample);
 
+#ifdef USE_BLUETOOTH
     if (SerialBT.available()) {
         String btCmd = SerialBT.readString();
         processCommand(btCmd);
     }
+#endif
 }
