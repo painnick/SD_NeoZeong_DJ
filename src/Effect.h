@@ -80,13 +80,13 @@ void theaterChaseRainbow(Adafruit_NeoPixel &strip, uint8_t wait) {
 }
 
 void colorHeight(Adafruit_NeoPixel &strip1, Adafruit_NeoPixel &strip2, uint32_t c, int height) {
-    uint16_t pixels1 = strip1.numPixels() - 1;
-    for (uint16_t i = 0; i < pixels1; i++) {
-        strip1.setPixelColor(pixels1 - i, (i < height) ? c : 0);
+    uint16_t pixels1 = strip1.numPixels();
+    for (uint16_t i = 1; i < pixels1 + 1; i++) {
+        strip1.setPixelColor(pixels1 - i, (i <= height) ? c : 0);
     }
-    uint16_t pixels2 = strip1.numPixels() - 1;
-    for (uint16_t i = 0; i < pixels2; i++) {
-        strip2.setPixelColor(pixels1 - i, (i < height) ? c : 0);
+    uint16_t pixels2 = strip1.numPixels();
+    for (uint16_t i = 1; i < pixels2 + 1; i++) {
+        strip2.setPixelColor(pixels2 - i, (i <= height) ? c : 0);
     }
     strip1.show();
     strip2.show();
