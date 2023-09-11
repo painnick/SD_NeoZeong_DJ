@@ -77,7 +77,7 @@ unsigned long lastBarChecked = 0;
             lastBarChecked = now;
             off = false;
         } else {
-            if (now - lastBarChecked > 50) {
+            if (now - lastBarChecked > 100) {
                 lastHeight--;
                 if (lastHeight < 0) {
                     lastHeight = 0;
