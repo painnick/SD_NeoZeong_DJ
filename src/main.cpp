@@ -113,7 +113,7 @@ unsigned long lastBarChecked = 0;
                 }
             }
         }
-        delay(1);
+        vTaskDelay(1);
     }
 }
 
