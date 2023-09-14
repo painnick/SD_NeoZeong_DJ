@@ -49,38 +49,23 @@ BluetoothSerial SerialBT;
 
 #define EEPROM_SIZE (1 + 4 + 4)
 #define EEPROM_ADDR_VOLUME 0
+#define EEPROM_ADDR_COEF (EEPROM_ADDR_VOLUME + 4)
+#define EEPROM_ADDR_SENSE (EEPROM_ADDR_COEF + 4)
+
 
 // ============================================================
 // Envelop
 // ============================================================
 int Coefficient = 3;
 int Sensitivity = 10; // decrease for better sensitivity
+int MaxAmplitudeOnPlay = 0;
 #define MAX_AMPLITUDE 250
 #define MAX_TARGET_AMPLITUDE (MAX_AMPLITUDE / 2)
 
-void calcCoefficient() {
-    if (Volume < 10) {
-        Coefficient = 1;
-    } else if (Volume < 20) {
-        Coefficient = 2;
-    } else {
-        Coefficient = 3;
-    }
-}
-
-void calcSensitivity() {
-    if (Volume < 10) {
-        Sensitivity = 0;
-    } else if (Volume < 20) {
-        Sensitivity = 10;
-    } else {
-        Sensitivity = 20;
-    }
-}
-
 // ============================================================
 
-int GlobalBarHeight = 0;
+int SuggestBarHeight = 0;
+int LastAmplitude = 0;
 
 [[noreturn]] void taskStage(void *params) {
     while (true) {
@@ -96,10 +81,13 @@ unsigned long lastBarChecked = 0;
 
     while (true) {
         unsigned long now = millis();
-        int capturedGlobalBarHeight = GlobalBarHeight;
-        if (capturedGlobalBarHeight > lastHeight) {
-            ESP_LOGD(MAIN_TAG, "Bar == UP == Height %d (Last %d)", capturedGlobalBarHeight, lastHeight);
-            lastHeight = capturedGlobalBarHeight;
+        int suggestedBarHeight = SuggestBarHeight;
+        int lastAmplitude = LastAmplitude;
+        if (suggestedBarHeight > lastHeight) {
+            ESP_LOGD(MAIN_TAG,
+                     "Bar == UP == Height %2d (Amp %3d, Last %2d)",
+                     suggestedBarHeight, lastAmplitude, lastHeight);
+            lastHeight = suggestedBarHeight;
             uint32_t color = calcColor(min(lastHeight, STRIP_BAR_MAX_HEIGHT));
             colorHeight(stripBar1, stripBar2, color, lastHeight);
             lastBarChecked = now;
@@ -113,7 +101,7 @@ unsigned long lastBarChecked = 0;
                 }
                 if (!off) {
                     lastHeight = max(lastHeight, 0);
-                    ESP_LOGD(MAIN_TAG, "Bar .-down-.  Height %d (Current %d)", lastHeight, capturedGlobalBarHeight);
+//                    ESP_LOGD(MAIN_TAG, "Bar .-down-.  Height %d (Current %d)", lastHeight, suggestedBarHeight);
 
                     uint32_t color = calcColor(min(lastHeight, STRIP_BAR_MAX_HEIGHT));
                     colorHeight(stripBar1, stripBar2, color, lastHeight);
@@ -145,24 +133,28 @@ void processCommand(const String &cmd) {
         sscanf(cmd.c_str(), "volume %u", &vol);
         dfmp3.setVolume(vol);
         dfmp3.loop();
+        Volume = vol;
         EEPROM.writeUChar(EEPROM_ADDR_VOLUME, vol);
         EEPROM.commit();
-        Volume = vol;
-        calcCoefficient();
-        calcSensitivity();
     } else if (cmd.startsWith("coef ")) {
         uint8_t coef = 0;
         sscanf(cmd.c_str(), "coef %u", &coef);
         Coefficient = coef;
+        EEPROM.writeUChar(EEPROM_ADDR_COEF, coef);
+        EEPROM.commit();
     } else if (cmd.startsWith("sense ")) {
         uint8_t sense = 0;
         sscanf(cmd.c_str(), "sense %u", &sense);
         Sensitivity = sense;
+        EEPROM.writeUChar(EEPROM_ADDR_SENSE, sense);
+        EEPROM.commit();
     } else if (cmd.equals("status")) {
         SerialBT.printf("Volume : %d\n", Volume);
         SerialBT.printf("Bright : %d\n", CurrentBright);
         SerialBT.printf("Coefficient  : %d\n", Coefficient);
         SerialBT.printf("Sensitivity : %d\n", Sensitivity);
+        SerialBT.printf("MaxAmplitudeOnPlay : %d\n", MaxAmplitudeOnPlay);
+        SerialBT.printf("* Amp = (PeekToPeek / Coefficient) - Sensitivity\n");
     } else if (cmd.equals("next")) {
         dfmp3.nextTrack();
     } else if (cmd.startsWith("bright ")) {
@@ -178,9 +170,11 @@ void setup() {
 
     EEPROM.begin(EEPROM_SIZE);
     Volume = EEPROM.read(EEPROM_ADDR_VOLUME);
-
-    calcCoefficient();
-    calcSensitivity();
+    Coefficient = EEPROM.read(EEPROM_ADDR_COEF);
+    if (Coefficient < 1) {
+        Coefficient = 1;
+    }
+    Sensitivity = EEPROM.read(EEPROM_ADDR_VOLUME);
 
     xTaskCreate(
             taskStage,
@@ -234,6 +228,8 @@ void onPlayerBusy(unsigned long now) {
             dfmp3.playRandomTrackFromAll();
             dfmp3.delayForResponse(100);
 
+            MaxAmplitudeOnPlay = 0;
+
             firstTime = false;
         } else {
             //
@@ -259,10 +255,15 @@ void displayEnvelope() {
     int amplitude = peakToPeak - Sensitivity;
     if (amplitude < 0) amplitude = 0;
     else if (amplitude > MAX_AMPLITUDE) amplitude = MAX_AMPLITUDE;
-    ESP_LOGD(MAIN_TAG, "amplitude : %3d", amplitude);
+//    ESP_LOGD(MAIN_TAG, "amplitude : %3d", amplitude);
+    LastAmplitude = amplitude;
 
-    GlobalBarHeight = map(amplitude, 0, MAX_TARGET_AMPLITUDE, 0, STRIP_BAR_MAX_HEIGHT);
-    GlobalBarHeight = min(GlobalBarHeight, STRIP_BAR_MAX_HEIGHT);
+    if (LastAmplitude > MaxAmplitudeOnPlay) {
+        MaxAmplitudeOnPlay = LastAmplitude;
+    }
+
+    SuggestBarHeight = map(amplitude, 0, MAX_TARGET_AMPLITUDE, 0, STRIP_BAR_MAX_HEIGHT);
+    SuggestBarHeight = min(SuggestBarHeight, STRIP_BAR_MAX_HEIGHT);
 }
 
 void loop() {

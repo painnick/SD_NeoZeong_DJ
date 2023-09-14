@@ -10,7 +10,7 @@
 
 #define DEFAULT_BRIGHT 30
 
-int currentBright = DEFAULT_BRIGHT;
+int CurrentBright = DEFAULT_BRIGHT;
 
 // Input a value 0 to 255 to get a color value.
 // The colours are a transition r - g - b - back to r.
@@ -67,7 +67,7 @@ void theaterChaseRainbow(Adafruit_NeoPixel &strip, uint8_t wait) {
                 strip.setPixelColor(i + q, Wheel(strip, (i + j) % 255));    //turn every third pixel on
             }
 
-            strip.setBrightness(currentBright);
+            strip.setBrightness(CurrentBright);
             strip.show();
 
             delay(wait);
@@ -95,11 +95,11 @@ void colorHeight(Adafruit_NeoPixel &strip1, Adafruit_NeoPixel &strip2, uint32_t 
 uint32_t calcColor(int height) {
     uint32_t color = 0;
     if (height < 3) {
-        color = Adafruit_NeoPixel::Color(0, 0, currentBright);
+        color = Adafruit_NeoPixel::Color(0, 0, CurrentBright);
     } else if (height < 5) {
-        color = Adafruit_NeoPixel::Color(0, currentBright, 0);
+        color = Adafruit_NeoPixel::Color(0, CurrentBright, 0);
     } else {
-        color = Adafruit_NeoPixel::Color(currentBright, 0, 0);
+        color = Adafruit_NeoPixel::Color(CurrentBright, 0, 0);
     }
     return color;
 }
