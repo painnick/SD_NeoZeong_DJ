@@ -203,7 +203,7 @@ void setup() {
 
     setupAudioInput();
 
-    SerialBT.begin("DJ Drop the BEAT!");
+    SerialBT.begin("DJ Gundam");
     SerialBT.register_callback([](esp_spp_cb_event_t evt, esp_spp_cb_param_t *param) {
         switch (evt) {
             case ESP_SPP_SRV_OPEN_EVT:
