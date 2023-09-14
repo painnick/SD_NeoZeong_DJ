@@ -14,7 +14,7 @@
 // ------------------------------------------------------------
 // Volume : 0~30
 // ============================================================
-int MP3_VOLUME = 10;
+int Volume = 10;
 
 HardwareSerial mySerial(UART_PLAYER);
 DfMp3 dfmp3(mySerial);
@@ -49,6 +49,34 @@ BluetoothSerial SerialBT;
 
 #define EEPROM_SIZE (1 + 4 + 4)
 #define EEPROM_ADDR_VOLUME 0
+
+// ============================================================
+// Envelop
+// ============================================================
+int Coefficient = 3;
+int Sensitivity = 10; // decrease for better sensitivity
+#define MAX_AMPLITUDE 250
+#define MAX_TARGET_AMPLITUDE (MAX_AMPLITUDE / 2)
+
+void calcCoefficient() {
+    if (Volume < 10) {
+        Coefficient = 1;
+    } else if (Volume < 20) {
+        Coefficient = 2;
+    } else {
+        Coefficient = 3;
+    }
+}
+
+void calcSensitivity() {
+    if (Volume < 10) {
+        Sensitivity = 0;
+    } else if (Volume < 20) {
+        Sensitivity = 10;
+    } else {
+        Sensitivity = 20;
+    }
+}
 
 // ============================================================
 
@@ -101,7 +129,9 @@ void sendCommandList() {
     SerialBT.println("--- Commands ---");
     SerialBT.println("help");
     SerialBT.println("volume %d");
-    SerialBT.println("volume");
+    SerialBT.println("coef %d");
+    SerialBT.println("sense %d");
+    SerialBT.println("status");
     SerialBT.println("next");
     SerialBT.println("bright %d");
     SerialBT.println("--- End ---");
@@ -110,9 +140,6 @@ void sendCommandList() {
 void processCommand(const String &cmd) {
     if (cmd.equals("help")) {
         sendCommandList();
-    } else if (cmd.equals("volume")) {
-        uint8_t volume = dfmp3.getVolume();
-        SerialBT.printf("Volume is %d\n", volume);
     } else if (cmd.startsWith("volume ")) {
         uint8_t vol = 0;
         sscanf(cmd.c_str(), "volume %u", &vol);
@@ -120,10 +147,26 @@ void processCommand(const String &cmd) {
         dfmp3.loop();
         EEPROM.writeUChar(EEPROM_ADDR_VOLUME, vol);
         EEPROM.commit();
+        Volume = vol;
+        calcCoefficient();
+        calcSensitivity();
+    } else if (cmd.startsWith("coef ")) {
+        uint8_t coef = 0;
+        sscanf(cmd.c_str(), "coef %u", &coef);
+        Coefficient = coef;
+    } else if (cmd.startsWith("sense ")) {
+        uint8_t sense = 0;
+        sscanf(cmd.c_str(), "sense %u", &sense);
+        Sensitivity = sense;
+    } else if (cmd.equals("status")) {
+        SerialBT.printf("Volume : %d\n", Volume);
+        SerialBT.printf("Bright : %d\n", CurrentBright);
+        SerialBT.printf("Coefficient  : %d\n", Coefficient);
+        SerialBT.printf("Sensitivity : %d\n", Sensitivity);
     } else if (cmd.equals("next")) {
         dfmp3.nextTrack();
     } else if (cmd.startsWith("bright ")) {
-        sscanf(cmd.c_str(), "bright %u", &currentBright);
+        sscanf(cmd.c_str(), "bright %u", &CurrentBright);
     } else {
         SerialBT.printf("Unknown command\n");
     }
@@ -134,7 +177,10 @@ void setup() {
     ESP_LOGI(MAIN_TAG, "Setup!");
 
     EEPROM.begin(EEPROM_SIZE);
-    MP3_VOLUME = EEPROM.read(EEPROM_ADDR_VOLUME);
+    Volume = EEPROM.read(EEPROM_ADDR_VOLUME);
+
+    calcCoefficient();
+    calcSensitivity();
 
     xTaskCreate(
             taskStage,
@@ -182,7 +228,7 @@ void onPlayerBusy(unsigned long now) {
     if (playerBusy == HIGH) {
         if (firstTime) {
             ESP_LOGI(MAIN_TAG, "Play Start!");
-            dfmp3.setVolume(MP3_VOLUME);
+            dfmp3.setVolume(Volume);
             dfmp3.delayForResponse(100);
 
             dfmp3.playRandomTrackFromAll();
@@ -195,17 +241,12 @@ void onPlayerBusy(unsigned long now) {
     }
 }
 
-#define COEF3 3
-#define SENSITIVITY 30 // decrease for better sensitivity
-#define MAX_AMPLITUDE 250
-#define MAX_TARGET_AMPLITUDE (MAX_AMPLITUDE / 2)
-
 void displayEnvelope() {
     unsigned int signalMax = 0;
     unsigned int signalMin = 4096;
     unsigned long chrono = micros(); // Sample window 10ms
     while (micros() - chrono < 10000ul) {
-        int sample = adc1_get_raw(ADC_CHANNEL) / COEF3;
+        int sample = adc1_get_raw(ADC_CHANNEL) / Coefficient;
         if (sample > signalMax) {
             signalMax = sample;
         } else if (sample < signalMin) {
@@ -215,7 +256,7 @@ void displayEnvelope() {
     }
 
     unsigned int peakToPeak = signalMax - signalMin;
-    int amplitude = peakToPeak - SENSITIVITY;
+    int amplitude = peakToPeak - Sensitivity;
     if (amplitude < 0) amplitude = 0;
     else if (amplitude > MAX_AMPLITUDE) amplitude = MAX_AMPLITUDE;
     ESP_LOGD(MAIN_TAG, "amplitude : %3d", amplitude);
