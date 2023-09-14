@@ -105,6 +105,7 @@ void sendCommandList() {
     SerialBT.println("gain %d %d");
     SerialBT.println("gain");
     SerialBT.println("next");
+    SerialBT.println("bright %d");
     SerialBT.println("--- End ---");
 }
 
@@ -123,6 +124,8 @@ void processCommand(const String &cmd) {
         EEPROM.commit();
     } else if (cmd.equals("next")) {
         dfmp3.nextTrack();
+    } else if (cmd.startsWith("bright ")) {
+        sscanf(cmd.c_str(), "bright %u", &currentBright);
     } else {
         SerialBT.printf("Unknown command\n");
     }
