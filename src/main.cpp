@@ -102,8 +102,6 @@ void sendCommandList() {
     SerialBT.println("help");
     SerialBT.println("volume %d");
     SerialBT.println("volume");
-    SerialBT.println("gain %d %d");
-    SerialBT.println("gain");
     SerialBT.println("next");
     SerialBT.println("bright %d");
     SerialBT.println("--- End ---");
