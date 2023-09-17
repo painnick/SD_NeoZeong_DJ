@@ -214,6 +214,25 @@ void setup() {
         }
     });
 
+    ledController.setInterval(300);
+
+    ledController.setSeq(0, new boolean[10]{true, false}, 10); // Green
+    ledController.setSeq(1, new boolean[7]{true, false}, 7); // Green
+    ledController.setSeq(2, new boolean[5]{true, false}, 5); // Red
+    ledController.setSeq(3, new boolean[5]{true, false}, 5); // Red
+    ledController.setSeq(4, new boolean[12]{true, false}, 12); // Yellow
+    ledController.setSeq(5, new boolean[12]{true, false}, 12); // Yellow
+    ledController.setSeq(6, new boolean[7]{true, false}, 7); // Blue
+    ledController.setSeq(7, new boolean[7]{true, false}, 7); // Blue
+    ledController.setSeq(8, new boolean[4]{true, false}, 4); // Blue
+    ledController.setSeq(9, new boolean[4]{true, false}, 4); // Blue
+
+    ledController.setSeq(10, new boolean[6]{true, false}, 6);
+    ledController.setSeq(11, new boolean[6]{true, false}, 6);
+    ledController.setSeq(12, new boolean[15]{true, false}, 15);
+    ledController.setSeq(13, new boolean[15]{true, false}, 15);
+    ledController.setSeq(14, new boolean[4]{true, false}, 4);
+    ledController.setSeq(15, new boolean[4]{true, false}, 4);
 }
 
 bool firstTime = true;
