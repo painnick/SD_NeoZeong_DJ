@@ -5,7 +5,7 @@
 #include "Mp3Notify.h"
 #include "AdcUtil.h"
 
-#include "Effect.h"
+#include "NeoPixelEffects.h"
 
 #define MAIN_TAG "Main"
 
