@@ -87,6 +87,7 @@ unsigned long lastBarChecked = 0;
     while (true) {
         unsigned long now = millis();
         int suggestedBarHeight = SuggestBarHeight;
+        int lastAmplitude = LastAmplitude;
         if (suggestedBarHeight > lastHeight) {
             ESP_LOGD(MAIN_TAG,
                      "Bar == UP == Height %2d (Amp %3d, Last %2d)",
