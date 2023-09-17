@@ -63,6 +63,17 @@ int MaxAmplitudeOnPlay = 0;
 #define MAX_TARGET_AMPLITUDE (MAX_AMPLITUDE / 2)
 
 // ============================================================
+// Shift Register
+// ============================================================
+#include "ShiftRegisterLed.h"
+
+#define PIN_SR_DATA 21
+#define PIN_SR_LATCH 22
+#define PIN_SR_CLOCK 23
+
+ShiftRegisterLed ledController(PIN_SR_DATA, PIN_SR_LATCH, PIN_SR_CLOCK);
+
+// ============================================================
 
 int SuggestBarHeight = 0;
 int LastAmplitude = 0;
@@ -213,6 +224,7 @@ void setup() {
                 break;
         }
     });
+
 }
 
 bool firstTime = true;
@@ -279,4 +291,6 @@ void loop() {
         String btCmd = SerialBT.readString();
         processCommand(btCmd);
     }
+
+    ledController.loop(now);
 }
