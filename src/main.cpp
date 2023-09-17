@@ -43,15 +43,9 @@ Adafruit_NeoPixel stripBar2 = Adafruit_NeoPixel(STRIP_BAR_MAX_HEIGHT, PIN_STRIP_
 BluetoothSerial SerialBT;
 
 // ============================================================
-// EEPROM
+// EEPROM Manager
 // ============================================================
-#include <EEPROM.h>
-
-#define EEPROM_SIZE (1 + 4 + 4)
-#define EEPROM_ADDR_VOLUME 0
-#define EEPROM_ADDR_COEF (EEPROM_ADDR_VOLUME + 4)
-#define EEPROM_ADDR_SENSE (EEPROM_ADDR_COEF + 4)
-
+#include "EEPROMManager.h"
 
 // ============================================================
 // Envelop
@@ -145,20 +139,22 @@ void processCommand(const String &cmd) {
         dfmp3.setVolume(vol);
         dfmp3.loop();
         Volume = vol;
-        EEPROM.writeUChar(EEPROM_ADDR_VOLUME, vol);
-        EEPROM.commit();
+        EEPROMManager::writeVolume(vol);
+    } else if (cmd.startsWith("bright ")) {
+        uint8_t bright = 0;
+        sscanf(cmd.c_str(), "bright %u", &bright);
+        CurrentBright = bright;
+        EEPROMManager::writeVolume(bright);
     } else if (cmd.startsWith("coef ")) {
         uint8_t coef = 0;
         sscanf(cmd.c_str(), "coef %u", &coef);
         Coefficient = coef;
-        EEPROM.writeUChar(EEPROM_ADDR_COEF, coef);
-        EEPROM.commit();
+        EEPROMManager::writeCoefficient(coef);
     } else if (cmd.startsWith("sense ")) {
         uint8_t sense = 0;
         sscanf(cmd.c_str(), "sense %u", &sense);
         Sensitivity = sense;
-        EEPROM.writeUChar(EEPROM_ADDR_SENSE, sense);
-        EEPROM.commit();
+        EEPROMManager::writeSensitivity(sense);
     } else if (cmd.equals("status")) {
         SerialBT.printf("Volume : %d\n", Volume);
         SerialBT.printf("Bright : %d\n", CurrentBright);
@@ -179,13 +175,10 @@ void setup() {
 
     ESP_LOGI(MAIN_TAG, "Setup!");
 
-    EEPROM.begin(EEPROM_SIZE);
-    Volume = EEPROM.read(EEPROM_ADDR_VOLUME);
-    Coefficient = EEPROM.read(EEPROM_ADDR_COEF);
-    if (Coefficient < 1) {
-        Coefficient = 1;
-    }
-    Sensitivity = EEPROM.read(EEPROM_ADDR_VOLUME);
+    Volume = EEPROMManager::readVolume();
+    Coefficient =EEPROMManager::readCoefficient();
+    Sensitivity = EEPROMManager::readSensitivity();
+    CurrentBright = EEPROMManager::readBrightness();
 
     xTaskCreate(
             taskStage,
