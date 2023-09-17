@@ -15,7 +15,11 @@ public:
     }
 
     static uint8_t readVolume() {
-        return EEPROM.read(EEPROM_ADDR_VOLUME);
+        uint8_t volume = EEPROM.read(EEPROM_ADDR_VOLUME);
+        if (volume == 0) {
+            volume = 10;
+        }
+        return volume;
     }
 
     static void writeVolume(uint8_t vol) {
@@ -46,7 +50,11 @@ public:
     }
 
     static uint8_t readBrightness() {
-        return EEPROM.read(EEPROM_ADDR_BRIGHT);
+        uint8_t bright = EEPROM.read(EEPROM_ADDR_BRIGHT);
+        if (bright == 0) {
+            bright = 30;
+        }
+        return bright;
     }
 
     static void writeBrightness(uint8_t bright) {

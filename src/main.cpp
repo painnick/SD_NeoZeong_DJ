@@ -72,7 +72,7 @@ ShiftRegisterLed ledController(PIN_SR_DATA, PIN_SR_LATCH, PIN_SR_CLOCK);
 int SuggestBarHeight = 0;
 int LastAmplitude = 0;
 
-[[noreturn]] void taskStage(void *params) {
+[[noreturn]] void taskStage(__attribute__((unused)) void *params) {
     while (true) {
         theaterChaseRainbow(stripStage, 100);
     }
@@ -80,14 +80,13 @@ int LastAmplitude = 0;
 
 unsigned long lastBarChecked = 0;
 
-[[noreturn]] void taskBar(void *params) {
+[[noreturn]] void taskBar(__attribute__((unused)) void *params) {
     int lastHeight = 0;
     bool off = false;
 
     while (true) {
         unsigned long now = millis();
         int suggestedBarHeight = SuggestBarHeight;
-        int lastAmplitude = LastAmplitude;
         if (suggestedBarHeight > lastHeight) {
             ESP_LOGD(MAIN_TAG,
                      "Bar == UP == Height %2d (Amp %3d, Last %2d)",
@@ -131,28 +130,25 @@ void sendCommandList() {
 }
 
 void processCommand(const String &cmd) {
+    char *pos = nullptr;
     if (cmd.equals("help")) {
         sendCommandList();
     } else if (cmd.startsWith("volume ")) {
-        uint8_t vol = 0;
-        sscanf(cmd.c_str(), "volume %u", &vol);
+        uint8_t vol = strtoul(cmd.c_str() + 7, &pos, 10);
         dfmp3.setVolume(vol);
         dfmp3.loop();
         Volume = vol;
         EEPROMManager::writeVolume(vol);
     } else if (cmd.startsWith("bright ")) {
-        uint8_t bright = 0;
-        sscanf(cmd.c_str(), "bright %u", &bright);
+        uint8_t bright = strtoul(cmd.c_str() + 7, &pos, 10);
         CurrentBright = bright;
-        EEPROMManager::writeVolume(bright);
+        EEPROMManager::writeBrightness(bright);
     } else if (cmd.startsWith("coef ")) {
-        uint8_t coef = 0;
-        sscanf(cmd.c_str(), "coef %u", &coef);
+        uint8_t coef = strtoul(cmd.c_str() + 5, &pos, 10);
         Coefficient = coef;
         EEPROMManager::writeCoefficient(coef);
     } else if (cmd.startsWith("sense ")) {
-        uint8_t sense = 0;
-        sscanf(cmd.c_str(), "sense %u", &sense);
+        uint8_t sense = strtoul(cmd.c_str() + 6, &pos, 10);
         Sensitivity = sense;
         EEPROMManager::writeSensitivity(sense);
     } else if (cmd.equals("status")) {
@@ -164,8 +160,6 @@ void processCommand(const String &cmd) {
         SerialBT.printf("* Amp = (PeekToPeek / Coefficient) - Sensitivity\n");
     } else if (cmd.equals("next")) {
         dfmp3.nextTrack();
-    } else if (cmd.startsWith("bright ")) {
-        sscanf(cmd.c_str(), "bright %u", &CurrentBright);
     } else {
         SerialBT.printf("Unknown command\n");
     }
@@ -175,8 +169,9 @@ void setup() {
 
     ESP_LOGI(MAIN_TAG, "Setup!");
 
+    EEPROMManager::init();
     Volume = EEPROMManager::readVolume();
-    Coefficient =EEPROMManager::readCoefficient();
+    Coefficient = EEPROMManager::readCoefficient();
     Sensitivity = EEPROMManager::readSensitivity();
     CurrentBright = EEPROMManager::readBrightness();
 
@@ -222,7 +217,7 @@ void setup() {
 
 bool firstTime = true;
 
-void onPlayerBusy(unsigned long now) {
+void onPlayerBusy() {
     int playerBusy = digitalRead(PIN_PLAYER_BUSY);
     if (playerBusy == HIGH) {
         if (firstTime) {
@@ -243,8 +238,8 @@ void onPlayerBusy(unsigned long now) {
 }
 
 void displayEnvelope() {
-    unsigned int signalMax = 0;
-    unsigned int signalMin = 4096;
+    int signalMax = 0;
+    int signalMin = 4096;
     unsigned long chrono = micros(); // Sample window 10ms
     while (micros() - chrono < 10000ul) {
         int sample = adc1_get_raw(ADC_CHANNEL) / Coefficient;
@@ -256,7 +251,7 @@ void displayEnvelope() {
         vTaskDelay(1);
     }
 
-    unsigned int peakToPeak = signalMax - signalMin;
+    int peakToPeak = signalMax - signalMin;
     int amplitude = peakToPeak - Sensitivity;
     if (amplitude < 0) amplitude = 0;
     else if (amplitude > MAX_AMPLITUDE) amplitude = MAX_AMPLITUDE;
@@ -276,7 +271,7 @@ void loop() {
 
     dfmp3.loop();
 
-    onPlayerBusy(now);
+    onPlayerBusy();
 
     displayEnvelope();
 
