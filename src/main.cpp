@@ -73,7 +73,6 @@ int SuggestBarHeight = 0;
 int LastAmplitude = 0;
 
 [[noreturn]] void taskStage(__attribute__((unused)) void *params) {
-    stripStage.setBrightness(CurrentBright);
     while (true) {
         theaterChaseRainbow(stripStage, 50, 16, 4);
     }
@@ -84,9 +83,6 @@ unsigned long lastBarChecked = 0;
 [[noreturn]] void taskBar(__attribute__((unused)) void *params) {
     int lastHeight = 0;
     bool off = false;
-
-    stripBar1.setBrightness(CurrentBright);
-    stripBar2.setBrightness(CurrentBright);
 
     while (true) {
         unsigned long now = millis();

@@ -4,6 +4,10 @@
 
 #include <Adafruit_NeoPixel.h>
 
+#include "esp_log.h"
+
+#define NEO_TAG "NEO"
+
 #define DEFAULT_BRIGHT 30
 
 int CurrentBright = DEFAULT_BRIGHT;
@@ -70,6 +74,7 @@ void theaterChaseRainbow(Adafruit_NeoPixel &strip, uint8_t wait, int colorStep, 
                 strip.setPixelColor(i + q, Wheel((i + j) % 255));    //turn every third pixel on
             }
 
+            strip.setBrightness(CurrentBright);
             strip.show();
 
             delay(wait);
@@ -84,12 +89,15 @@ void theaterChaseRainbow(Adafruit_NeoPixel &strip, uint8_t wait, int colorStep, 
 void colorHeight(Adafruit_NeoPixel &strip1, Adafruit_NeoPixel &strip2, uint32_t c, int height) {
     uint16_t pixels1 = strip1.numPixels();
     for (uint16_t i = 1; i < pixels1 + 1; i++) {
-        strip1.setPixelColor(pixels1 - i, (i <= height) ? c : 0);
+        int index = pixels1 - i;
+        uint32_t color = (i <= height) ? c : 0;
+        strip1.setPixelColor(index, color);
+        strip2.setPixelColor(index, color);
     }
-    uint16_t pixels2 = strip1.numPixels();
-    for (uint16_t i = 1; i < pixels2 + 1; i++) {
-        strip2.setPixelColor(pixels2 - i, (i <= height) ? c : 0);
-    }
+
+    strip1.setBrightness(CurrentBright);
+    strip2.setBrightness(CurrentBright);
+
     strip1.show();
     strip2.show();
 }
@@ -97,11 +105,11 @@ void colorHeight(Adafruit_NeoPixel &strip1, Adafruit_NeoPixel &strip2, uint32_t 
 uint32_t calcColor(int height) {
     uint32_t color;
     if (height < 3) {
-        color = Adafruit_NeoPixel::Color(0, 0, CurrentBright);
+        color = Adafruit_NeoPixel::Color(0, 0, 255);
     } else if (height < 5) {
-        color = Adafruit_NeoPixel::Color(0, CurrentBright, 0);
+        color = Adafruit_NeoPixel::Color(0, 255, 0);
     } else {
-        color = Adafruit_NeoPixel::Color(CurrentBright, 0, 0);
+        color = Adafruit_NeoPixel::Color(255, 0, 0);
     }
     return color;
 }
