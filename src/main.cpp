@@ -93,9 +93,9 @@ unsigned long lastBarChecked = 0;
         int suggestedBarHeight = SuggestBarHeight;
         int lastAmplitude = LastAmplitude;
         if (suggestedBarHeight > lastHeight) {
-            ESP_LOGD(MAIN_TAG,
-                     "Bar == UP == Height %2d (Amp %3d, Last %2d)",
-                     suggestedBarHeight, lastAmplitude, lastHeight);
+//            ESP_LOGD(MAIN_TAG,
+//                     "Bar == UP == Height %2d (Amp %3d, Last %2d)",
+//                     suggestedBarHeight, lastAmplitude, lastHeight);
             lastHeight = suggestedBarHeight;
             uint32_t color = calcColor(min(lastHeight, STRIP_BAR_MAX_HEIGHT));
             colorHeight(stripBar1, stripBar2, color, lastHeight);
