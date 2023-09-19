@@ -28,7 +28,7 @@ DfMp3 dfmp3(mySerial);
 #include <avr/power.h>
 #endif
 
-#define STRIP_STAGE_SIZE 65
+#define STRIP_STAGE_SIZE 45
 #define STRIP_BAR_MAX_HEIGHT 8
 
 Adafruit_NeoPixel stripStage = Adafruit_NeoPixel(STRIP_STAGE_SIZE, PIN_STRIP_STAGE, NEO_GRB + NEO_KHZ800);
