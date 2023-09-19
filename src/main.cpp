@@ -73,8 +73,9 @@ int SuggestBarHeight = 0;
 int LastAmplitude = 0;
 
 [[noreturn]] void taskStage(__attribute__((unused)) void *params) {
+    stripStage.setBrightness(CurrentBright);
     while (true) {
-        theaterChaseRainbow(stripStage, 100);
+        theaterChaseRainbow(stripStage, 50, 16, 4);
     }
 }
 

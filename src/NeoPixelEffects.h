@@ -4,10 +4,6 @@
 
 #include <Adafruit_NeoPixel.h>
 
-#ifdef __AVR__
-#include <avr/power.h>
-#endif
-
 #define DEFAULT_BRIGHT 30
 
 int CurrentBright = DEFAULT_BRIGHT;
@@ -60,18 +56,25 @@ void colorWipe(Adafruit_NeoPixel &strip, uint32_t c, uint8_t wait) {
     }
 }
 
-void theaterChaseRainbow(Adafruit_NeoPixel &strip, uint8_t wait) {
-    for (int j = 0; j < 256; j++) {     // cycle all 256 colors in the wheel
-        for (int q = 0; q < 3; q++) {
-            for (uint16_t i = 0; i < strip.numPixels(); i = i + 3) {
-                strip.setPixelColor(i + q, Wheel(strip, (i + j) % 255));    //turn every third pixel on
+uint16_t lastHue = 0;
+void randomColorWipe(Adafruit_NeoPixel &strip, uint8_t wait) {
+    lastHue += 256;
+    uint32_t c = Adafruit_NeoPixel::ColorHSV(lastHue, 255,255);
+    colorWipe(strip, c, wait);
+}
+
+void theaterChaseRainbow(Adafruit_NeoPixel &strip, uint8_t wait, int colorStep, int moveStep) {
+    for (int j = 0; j < 256; j += colorStep) {     // cycle all 256 colors in the wheel
+        for (int q = 0; q < moveStep; q++) {
+            for (uint16_t i = 0; i < strip.numPixels(); i += moveStep) {
+                strip.setPixelColor(i + q, Wheel((i + j) % 255));    //turn every third pixel on
             }
 
             strip.show();
 
             delay(wait);
 
-            for (uint16_t i = 0; i < strip.numPixels(); i = i + 3) {
+            for (uint16_t i = 0; i < strip.numPixels(); i += moveStep) {
                 strip.setPixelColor(i + q, 0);        //turn every third pixel off
             }
         }
@@ -92,7 +95,7 @@ void colorHeight(Adafruit_NeoPixel &strip1, Adafruit_NeoPixel &strip2, uint32_t 
 }
 
 uint32_t calcColor(int height) {
-    uint32_t color = 0;
+    uint32_t color;
     if (height < 3) {
         color = Adafruit_NeoPixel::Color(0, 0, CurrentBright);
     } else if (height < 5) {
