@@ -84,6 +84,9 @@ unsigned long lastBarChecked = 0;
     int lastHeight = 0;
     bool off = false;
 
+    stripBar1.setBrightness(CurrentBright);
+    stripBar2.setBrightness(CurrentBright);
+
     while (true) {
         unsigned long now = millis();
         int suggestedBarHeight = SuggestBarHeight;
