@@ -68,6 +68,22 @@ int MaxAmplitudeOnPlay = 0;
 ShiftRegisterLed ledController(PIN_SR_DATA, PIN_SR_LATCH, PIN_SR_CLOCK);
 
 // ============================================================
+// TFT Display
+// ============================================================
+//#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <Wire.h>
+
+#define TFT_SDA 2
+#define TFT_SCL 15
+
+#define SCREEN_WIDTH 128  // OLED display width, in pixels
+#define SCREEN_HEIGHT 64  // OLED display height, in pixels
+
+TwoWire tftWire(0);
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &tftWire, -1);
+
+// ============================================================
 
 int SuggestBarHeight = 0;
 int LastAmplitude = 0;
@@ -237,6 +253,22 @@ void setup() {
     ledController.setSeq(13, new boolean[15]{true, false}, 15);
     ledController.setSeq(14, new boolean[4]{true, false}, 4);
     ledController.setSeq(15, new boolean[4]{true, false}, 4);
+
+    if(tftWire.begin(TFT_SDA, TFT_SCL)) {
+        ESP_LOGI(MAIN_TAG, "TFT Wire begin.");
+    }
+
+    if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C, true, false)) {
+        ESP_LOGE(MAIN_TAG, "SSD1306 allocation failed");
+    } else {
+        ESP_LOGI(MAIN_TAG, "TFT is Connected.");
+    }
+
+    display.clearDisplay();
+    display.setTextColor(WHITE);  // Fixed
+    display.setTextSize(1);
+    display.setCursor(0, 0);
+    display.print("Welcome!");
 }
 
 bool firstTime = true;
