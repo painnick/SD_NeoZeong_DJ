@@ -5,7 +5,7 @@
 #include "Mp3Notify.h"
 #include "AdcUtil.h"
 
-#include "Effect.h"
+#include "NeoPixelEffects.h"
 
 #define MAIN_TAG "Main"
 
@@ -14,7 +14,7 @@
 // ------------------------------------------------------------
 // Volume : 0~30
 // ============================================================
-int MP3_VOLUME = 10;
+int Volume = 10;
 
 HardwareSerial mySerial(UART_PLAYER);
 DfMp3 dfmp3(mySerial);
@@ -28,13 +28,8 @@ DfMp3 dfmp3(mySerial);
 #include <avr/power.h>
 #endif
 
-#define STRIP_STAGE_SIZE 65
+#define STRIP_STAGE_SIZE 45
 #define STRIP_BAR_MAX_HEIGHT 8
-
-int SAMPLE_GAIN_MIN = 0; // 800
-int SAMPLE_GAIN_MAX = 511; // 2048
-
-#define SAMPLES_QUEUE_SIZE 1
 
 Adafruit_NeoPixel stripStage = Adafruit_NeoPixel(STRIP_STAGE_SIZE, PIN_STRIP_STAGE, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel stripBar1 = Adafruit_NeoPixel(STRIP_BAR_MAX_HEIGHT, PIN_STRIP_BAR1, NEO_GRB + NEO_KHZ800);
@@ -48,43 +43,66 @@ Adafruit_NeoPixel stripBar2 = Adafruit_NeoPixel(STRIP_BAR_MAX_HEIGHT, PIN_STRIP_
 BluetoothSerial SerialBT;
 
 // ============================================================
-// EEPROM
+// EEPROM Manager
 // ============================================================
-#include <EEPROM.h>
+#include "EEPROMManager.h"
 
-#define EEPROM_SIZE (1 + 4 + 4)
-#define EEPROM_ADDR_VOLUME 0
-#define EEPROM_ADDR_GAIN_MIN 1
-#define EEPROM_ADDR_GAIN_MAX (1 + 4)
+// ============================================================
+// Envelop
+// ============================================================
+int Coefficient = 3;
+int Sensitivity = 10; // decrease for better sensitivity
+int MaxAmplitudeOnPlay = 0;
+#define MAX_AMPLITUDE 250
+#define MAX_TARGET_AMPLITUDE (MAX_AMPLITUDE / 2)
 
-int GlobalBarHeight = 0;
-int GlobalCurrentSample = 0;
+// ============================================================
+// Shift Register
+// ============================================================
+#include "ShiftRegisterLed.h"
 
-[[noreturn]] void taskStage(void *params) {
+#define PIN_SR_DATA 21
+#define PIN_SR_LATCH 22
+#define PIN_SR_CLOCK 23
+
+ShiftRegisterLed ledController(PIN_SR_DATA, PIN_SR_LATCH, PIN_SR_CLOCK);
+
+// ============================================================
+
+int SuggestBarHeight = 0;
+int LastAmplitude = 0;
+
+[[noreturn]] void taskStage(__attribute__((unused)) void *params) {
+    stripStage.setBrightness(CurrentBright);
     while (true) {
-        theaterChaseRainbow(stripStage, 100);
+        theaterChaseRainbow(stripStage, 50, 16, 4);
     }
 }
 
 unsigned long lastBarChecked = 0;
 
-[[noreturn]] void taskBar(void *params) {
+[[noreturn]] void taskBar(__attribute__((unused)) void *params) {
     int lastHeight = 0;
     bool off = false;
 
+    stripBar1.setBrightness(CurrentBright);
+    stripBar2.setBrightness(CurrentBright);
+
     while (true) {
         unsigned long now = millis();
-        int capturedGlobalBarHeight = GlobalBarHeight;
-        if (capturedGlobalBarHeight > lastHeight) {
-            ESP_LOGD(MAIN_TAG, "Bar == UP == Height %d (Last %d) (%4d)", capturedGlobalBarHeight, lastHeight,
-                     GlobalCurrentSample);
-            lastHeight = capturedGlobalBarHeight;
+        int suggestedBarHeight = SuggestBarHeight;
+        int lastAmplitude = LastAmplitude;
+        if (suggestedBarHeight > lastHeight) {
+//            ESP_LOGD(MAIN_TAG,
+//                     "Bar == UP == Height %2d (Amp %3d, Last %2d)",
+//                     suggestedBarHeight, lastAmplitude, lastHeight);
+            lastHeight = suggestedBarHeight;
             uint32_t color = calcColor(min(lastHeight, STRIP_BAR_MAX_HEIGHT));
             colorHeight(stripBar1, stripBar2, color, lastHeight);
             lastBarChecked = now;
             off = false;
         } else {
-            if (now - lastBarChecked > 200) {
+            if (now - lastBarChecked > 100) {
                 lastHeight--;
                 if (lastHeight < 0) {
                     lastHeight = 0;
@@ -92,8 +110,7 @@ unsigned long lastBarChecked = 0;
                 }
                 if (!off) {
                     lastHeight = max(lastHeight, 0);
-                    ESP_LOGD(MAIN_TAG, "Bar .-down-.  Height %d (Current %d) (%4d)", lastHeight,
-                             capturedGlobalBarHeight, GlobalCurrentSample);
+//                    ESP_LOGD(MAIN_TAG, "Bar .-down-.  Height %d (Current %d)", lastHeight, suggestedBarHeight);
 
                     uint32_t color = calcColor(min(lastHeight, STRIP_BAR_MAX_HEIGHT));
                     colorHeight(stripBar1, stripBar2, color, lastHeight);
@@ -109,36 +126,43 @@ void sendCommandList() {
     SerialBT.println("--- Commands ---");
     SerialBT.println("help");
     SerialBT.println("volume %d");
-    SerialBT.println("volume");
-    SerialBT.println("gain %d %d");
-    SerialBT.println("gain");
+    SerialBT.println("coef %d");
+    SerialBT.println("sense %d");
+    SerialBT.println("status");
     SerialBT.println("next");
+    SerialBT.println("bright %d");
     SerialBT.println("--- End ---");
 }
 
 void processCommand(const String &cmd) {
+    char *pos = nullptr;
     if (cmd.equals("help")) {
         sendCommandList();
-    } else if (cmd.equals("volume")) {
-        uint8_t volume = dfmp3.getVolume();
-        SerialBT.printf("Volume is %d\n", volume);
     } else if (cmd.startsWith("volume ")) {
-        uint8_t vol = 0;
-        sscanf(cmd.c_str(), "volume %u", &vol);
+        uint8_t vol = strtoul(cmd.c_str() + 7, &pos, 10);
         dfmp3.setVolume(vol);
         dfmp3.loop();
-        EEPROM.writeUChar(EEPROM_ADDR_VOLUME, vol);
-        EEPROM.commit();
-    } else if (cmd.equals("gain")) {
-        SerialBT.printf("Gain is %d ~ %d\n", SAMPLE_GAIN_MIN, SAMPLE_GAIN_MAX);
-    } else if (cmd.startsWith("gain ")) {
-        int minGain = 0, maxGain = 0;
-        sscanf(cmd.c_str(), "gain %d %d", &minGain, &maxGain);
-        SAMPLE_GAIN_MIN = minGain;
-        SAMPLE_GAIN_MAX = maxGain;
-        EEPROM.writeInt(EEPROM_ADDR_GAIN_MIN, SAMPLE_GAIN_MIN);
-        EEPROM.writeInt(EEPROM_ADDR_GAIN_MAX, SAMPLE_GAIN_MAX);
-        EEPROM.commit();
+        Volume = vol;
+        EEPROMManager::writeVolume(vol);
+    } else if (cmd.startsWith("bright ")) {
+        uint8_t bright = strtoul(cmd.c_str() + 7, &pos, 10);
+        CurrentBright = bright;
+        EEPROMManager::writeBrightness(bright);
+    } else if (cmd.startsWith("coef ")) {
+        uint8_t coef = strtoul(cmd.c_str() + 5, &pos, 10);
+        Coefficient = coef;
+        EEPROMManager::writeCoefficient(coef);
+    } else if (cmd.startsWith("sense ")) {
+        uint8_t sense = strtoul(cmd.c_str() + 6, &pos, 10);
+        Sensitivity = sense;
+        EEPROMManager::writeSensitivity(sense);
+    } else if (cmd.equals("status")) {
+        SerialBT.printf("Volume : %d\n", Volume);
+        SerialBT.printf("Bright : %d\n", CurrentBright);
+        SerialBT.printf("Coefficient  : %d\n", Coefficient);
+        SerialBT.printf("Sensitivity : %d\n", Sensitivity);
+        SerialBT.printf("MaxAmplitudeOnPlay : %d\n", MaxAmplitudeOnPlay);
+        SerialBT.printf("* Amp = (PeekToPeek / Coefficient) - Sensitivity\n");
     } else if (cmd.equals("next")) {
         dfmp3.nextTrack();
     } else {
@@ -150,10 +174,11 @@ void setup() {
 
     ESP_LOGI(MAIN_TAG, "Setup!");
 
-    EEPROM.begin(EEPROM_SIZE);
-    MP3_VOLUME = EEPROM.read(EEPROM_ADDR_VOLUME);
-    SAMPLE_GAIN_MIN = EEPROM.readInt(EEPROM_ADDR_GAIN_MIN);
-    SAMPLE_GAIN_MAX = EEPROM.readInt(EEPROM_ADDR_GAIN_MAX);
+    EEPROMManager::init();
+    Volume = EEPROMManager::readVolume();
+    Coefficient = EEPROMManager::readCoefficient();
+    Sensitivity = EEPROMManager::readSensitivity();
+    CurrentBright = EEPROMManager::readBrightness();
 
     xTaskCreate(
             taskStage,
@@ -182,7 +207,7 @@ void setup() {
 
     setupAudioInput();
 
-    SerialBT.begin("DJ Drop the BEAT!");
+    SerialBT.begin("DJ Gundam");
     SerialBT.register_callback([](esp_spp_cb_event_t evt, esp_spp_cb_param_t *param) {
         switch (evt) {
             case ESP_SPP_SRV_OPEN_EVT:
@@ -192,20 +217,42 @@ void setup() {
                 break;
         }
     });
+
+    ledController.setInterval(300);
+
+    ledController.setSeq(0, new boolean[10]{true, false}, 10); // Green
+    ledController.setSeq(1, new boolean[7]{true, false}, 7); // Green
+    ledController.setSeq(2, new boolean[5]{true, false}, 5); // Red
+    ledController.setSeq(3, new boolean[5]{true, false}, 5); // Red
+    ledController.setSeq(4, new boolean[12]{true, false}, 12); // Yellow
+    ledController.setSeq(5, new boolean[12]{true, false}, 12); // Yellow
+    ledController.setSeq(6, new boolean[7]{true, false}, 7); // Blue
+    ledController.setSeq(7, new boolean[7]{true, false}, 7); // Blue
+    ledController.setSeq(8, new boolean[4]{true, false}, 4); // Blue
+    ledController.setSeq(9, new boolean[4]{true, false}, 4); // Blue
+
+    ledController.setSeq(10, new boolean[6]{true, false}, 6);
+    ledController.setSeq(11, new boolean[6]{true, false}, 6);
+    ledController.setSeq(12, new boolean[15]{true, false}, 15);
+    ledController.setSeq(13, new boolean[15]{true, false}, 15);
+    ledController.setSeq(14, new boolean[4]{true, false}, 4);
+    ledController.setSeq(15, new boolean[4]{true, false}, 4);
 }
 
 bool firstTime = true;
 
-void onPlayerBusy(unsigned long now) {
+void onPlayerBusy() {
     int playerBusy = digitalRead(PIN_PLAYER_BUSY);
     if (playerBusy == HIGH) {
         if (firstTime) {
             ESP_LOGI(MAIN_TAG, "Play Start!");
-            dfmp3.setVolume(MP3_VOLUME);
+            dfmp3.setVolume(Volume);
             dfmp3.delayForResponse(100);
 
             dfmp3.playRandomTrackFromAll();
             dfmp3.delayForResponse(100);
+
+            MaxAmplitudeOnPlay = 0;
 
             firstTime = false;
         } else {
@@ -214,48 +261,48 @@ void onPlayerBusy(unsigned long now) {
     }
 }
 
-void calcBarHeight(int diff) {
-    int barValue = map(diff, SAMPLE_GAIN_MIN, SAMPLE_GAIN_MAX, 0, STRIP_BAR_MAX_HEIGHT);
-    GlobalBarHeight = max(0, min(barValue, STRIP_BAR_MAX_HEIGHT));
-}
-
-int Queue[SAMPLES_QUEUE_SIZE] = {-1};
-int queueIndex = -1;
-
-void averageSamples(int sample) {
-    queueIndex = (queueIndex + 1) % SAMPLES_QUEUE_SIZE;
-    Queue[queueIndex] = sample;
-
-    int sum = 0, count = 0;
-    for (int val: Queue) {
-        if (val > -1) {
-            sum += val;
-            count++;
+void displayEnvelope() {
+    int signalMax = 0;
+    int signalMin = 4096;
+    unsigned long chrono = micros(); // Sample window 10ms
+    while (micros() - chrono < 10000ul) {
+        int sample = adc1_get_raw(ADC_CHANNEL) / Coefficient;
+        if (sample > signalMax) {
+            signalMax = sample;
+        } else if (sample < signalMin) {
+            signalMin = sample;
         }
+        vTaskDelay(1);
     }
-    GlobalCurrentSample = sum / count;
+
+    int peakToPeak = signalMax - signalMin;
+    int amplitude = peakToPeak - Sensitivity;
+    if (amplitude < 0) amplitude = 0;
+    else if (amplitude > MAX_AMPLITUDE) amplitude = MAX_AMPLITUDE;
+//    ESP_LOGD(MAIN_TAG, "amplitude : %3d", amplitude);
+    LastAmplitude = amplitude;
+
+    if (LastAmplitude > MaxAmplitudeOnPlay) {
+        MaxAmplitudeOnPlay = LastAmplitude;
+    }
+
+    SuggestBarHeight = map(amplitude, 0, MAX_TARGET_AMPLITUDE, 0, STRIP_BAR_MAX_HEIGHT);
+    SuggestBarHeight = min(SuggestBarHeight, STRIP_BAR_MAX_HEIGHT);
 }
 
-//unsigned long lastChecked = millis();
 void loop() {
     unsigned long now = millis();
 
     dfmp3.loop();
 
-    onPlayerBusy(now);
+    onPlayerBusy();
 
-    int sample = adc1_get_raw(ADC_CHANNEL);
-    averageSamples(sample);
-
-//    if (now - lastChecked > 100) {
-//        ESP_LOGD(MAIN_TAG, "Sample %d => %d", sample, GlobalCurrentSample);
-//        lastChecked = now;
-//    }
-
-    calcBarHeight(GlobalCurrentSample);
+    displayEnvelope();
 
     if (SerialBT.available()) {
         String btCmd = SerialBT.readString();
         processCommand(btCmd);
     }
+
+    ledController.loop(now);
 }

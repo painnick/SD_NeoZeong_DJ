@@ -12,13 +12,16 @@
 #define ADC_TAG "AdcUtil"
 
 #define DEFAULT_VREF 1100
+#define ADC_WIDTH_BIT ADC_WIDTH_BIT_12
+#define ADC_ATTEN_DB ADC_ATTEN_DB_11
+
 esp_adc_cal_characteristics_t *adc_chars;
 
 extern void setupAudioInput() {
   //Range 0-4096
-  adc1_config_width(ADC_WIDTH_BIT_12);
+  adc1_config_width(ADC_WIDTH_BIT);
   // full voltage range
-  adc1_config_channel_atten(ADC_CHANNEL, ADC_ATTEN_DB_11);
+  adc1_config_channel_atten(ADC_CHANNEL, ADC_ATTEN_DB);
 
   // check to see what calibration is available
   if (esp_adc_cal_check_efuse(ESP_ADC_CAL_VAL_EFUSE_VREF) == ESP_OK) {
@@ -32,6 +35,6 @@ extern void setupAudioInput() {
   }
   //Characterize ADC
   adc_chars = (esp_adc_cal_characteristics_t *)calloc(1, sizeof(esp_adc_cal_characteristics_t));
-  esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_12, DEFAULT_VREF, adc_chars);  
+  esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB, ADC_WIDTH_BIT, DEFAULT_VREF, adc_chars);
 }
 
