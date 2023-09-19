@@ -67,7 +67,6 @@ void theaterChaseRainbow(Adafruit_NeoPixel &strip, uint8_t wait) {
                 strip.setPixelColor(i + q, Wheel(strip, (i + j) % 255));    //turn every third pixel on
             }
 
-            strip.setBrightness(CurrentBright);
             strip.show();
 
             delay(wait);
